@@ -76,6 +76,20 @@ def count_rows(table: str) -> int:
     return con.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0]
 
 
+def build_value_overview_sql(table: str, col: str) -> str:
+    return (
+        f'SELECT "{col}", COUNT(*) AS "quantidade"\n'
+        f'FROM "{table}"\n'
+        f'GROUP BY "{col}"\n'
+        f'ORDER BY "quantidade" DESC'
+    )
+
+
+@st.cache_data(ttl=300)
+def get_value_overview(table: str, col: str) -> pd.DataFrame:
+    return con.execute(build_value_overview_sql(table, col)).df()
+
+
 def get_distinct_values(table: str, col: str, limit: int = 500) -> list:
     rows = con.execute(
         f'SELECT DISTINCT "{col}" FROM "{table}" '
@@ -147,7 +161,6 @@ def save_to_output(df: pd.DataFrame, filename: str, fmt: str) -> Path:
 def _init_state() -> None:
     defaults = {
         "loaded_tables": [],
-        "active_table": None,
         "filters": [],
         "derived_select": None,
         "last_result_sql": None,
@@ -188,6 +201,7 @@ with st.sidebar:
             get_schema.clear()
             get_summarize.clear()
             count_rows.clear()
+            get_value_overview.clear()
             st.success(f"{len(selected)} tabela(s) carregada(s).")
 
     st.markdown("---")
@@ -195,7 +209,8 @@ with st.sidebar:
     if loaded:
         st.subheader("Tabela ativa")
         active = st.selectbox("Selecionar tabela", loaded, key="active_table")
-        st.caption(f"{count_rows(active):,} linhas")
+        if active:
+            st.caption(f"{count_rows(active):,} linhas")
     else:
         st.info("Carregue ao menos um arquivo.")
         active = None
@@ -222,7 +237,9 @@ tabs = st.tabs(["Explorar", "SQL", "Filtros", "Agrupar", "Colunas", "Exportar"])
 with tabs[0]:
     st.header(f"Explorar — {active}")
 
-    subtab_schema, subtab_stats, subtab_preview = st.tabs(["Schema", "Estatísticas", "Preview"])
+    subtab_schema, subtab_stats, subtab_overview, subtab_preview = st.tabs(
+        ["Schema", "Estatísticas", "Overview de valores", "Preview"]
+    )
 
     with subtab_schema:
         st.dataframe(schema_df, use_container_width=True, hide_index=True)
@@ -232,6 +249,30 @@ with tabs[0]:
         if st.button("Calcular estatísticas", key="btn_summarize"):
             with st.spinner("Calculando..."):
                 st.dataframe(get_summarize(active), use_container_width=True, hide_index=True)
+
+    with subtab_overview:
+        overview_col = st.selectbox("Coluna", col_names, key="overview_col")
+        overview_sql = build_value_overview_sql(active, overview_col)
+
+        with st.expander("SQL gerado"):
+            st.code(overview_sql, language="sql")
+
+        if st.button("Calcular overview", type="primary", key="btn_value_overview"):
+            try:
+                with st.spinner("Calculando frequências..."):
+                    df_overview = get_value_overview(active, overview_col)
+                    distinct_count = len(df_overview)
+                    total_rows = int(df_overview["quantidade"].sum()) if not df_overview.empty else 0
+                    st.success(
+                        f"{distinct_count:,} valor(es) distinto(s) · {total_rows:,} linhas contabilizadas"
+                    )
+                    st.dataframe(
+                        paginate(df_overview, key="overview_page", page_size=100),
+                        use_container_width=True,
+                        hide_index=True,
+                    )
+            except Exception as e:
+                st.error(f"Erro ao calcular overview: {e}")
 
     with subtab_preview:
         preview_cols = st.multiselect(
