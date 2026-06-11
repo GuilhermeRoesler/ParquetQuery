@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Streamlit Power Query — exploração de parquets com DuckDB."""
+"""Streamlit Parquet Query — exploração de parquets com DuckDB."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ CAST_TYPES = ["VARCHAR", "INTEGER", "BIGINT", "DOUBLE", "BOOLEAN", "DATE", "TIME
 LIMITE_XLSX = 1_048_576
 
 st.set_page_config(
-    page_title="Power Query",
+    page_title="Parquet Query",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -177,7 +177,7 @@ _init_state()
 # Sidebar — seleção e carregamento de arquivos
 # ---------------------------------------------------------------------------
 with st.sidebar:
-    st.title("⚡ Power Query")
+    st.title("⚡ Parquet Query")
     st.markdown("---")
 
     parquet_files = sorted(INPUT_DIR.glob("*.parquet"))
@@ -220,7 +220,7 @@ with st.sidebar:
 # Main content
 # ---------------------------------------------------------------------------
 if not active:
-    st.title("⚡ Power Query")
+    st.title("⚡ Parquet Query")
     st.info("Selecione e carregue um arquivo `.parquet` na barra lateral para começar.")
     st.stop()
 
