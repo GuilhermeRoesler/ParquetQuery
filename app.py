@@ -11,6 +11,8 @@ import duckdb
 import pandas as pd
 import streamlit as st
 
+from pq_dax_translator import ParseError, normalize_power_formula, translate_power_column
+
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
@@ -535,22 +537,79 @@ with tabs[4]:
     )
 
     if op == "Adicionar coluna calculada":
-        new_col_name = st.text_input("Nome da nova coluna", key="new_col_name")
-        new_col_expr = st.text_input(
-            "Expressão DuckDB",
-            placeholder=f'"{derived_cols[0]}" * 2',
-            key="new_col_expr",
+        expr_mode = st.radio(
+            "Tipo de expressão",
+            ["DuckDB", "Power BI (DAX)"],
+            horizontal=True,
+            key="col_expr_mode",
+            help="Cole fórmulas de colunas calculadas do Power BI / DAX (ex.: IF, FORMAT, TODAY).",
         )
-        if st.button("Adicionar", key="btn_add_col"):
-            if new_col_name and new_col_expr:
-                new_sql = f'SELECT *, ({new_col_expr}) AS "{new_col_name}" FROM ({base_sql}) __t__'
+
+        if expr_mode == "DuckDB":
+            new_col_name = st.text_input("Nome da nova coluna", key="new_col_name")
+            new_col_expr = st.text_input(
+                "Expressão DuckDB",
+                placeholder=f'"{derived_cols[0]}" * 2',
+                key="new_col_expr",
+            )
+            if st.button("Adicionar", key="btn_add_col"):
+                if new_col_name and new_col_expr:
+                    new_sql = f'SELECT *, ({new_col_expr}) AS "{new_col_name}" FROM ({base_sql}) __t__'
+                    try:
+                        con.execute(f"SELECT * FROM ({new_sql}) __t__ LIMIT 1")
+                        st.session_state.derived_select = new_sql
+                        st.success(f"Coluna `{new_col_name}` adicionada.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Expressão inválida: {e}")
+        else:
+            with st.expander("Exemplos de fórmulas Power BI (DAX)"):
+                st.code(
+                    """Dias em Atraso = FORMAT(TODAY()- 'fValorNotas'[VENCIMENTO_PARCELA].[Date], 0)
+
+Aging_Atual = IF('fValorNotas'[Dias em Atraso]>360,"9_Acima 361",
+    IF('fValorNotas'[Dias em Atraso]>180,"8_181 - 360",
+    IF('fValorNotas'[Dias em Atraso]>0,"2_01 - 30","1_A vencer")))""",
+                    language="text",
+                )
+                st.caption(
+                    "Use o formato `Nome = expressão`. Referências `'Tabela'[Coluna]` ou `[Coluna]` "
+                    "são mapeadas para as colunas da view atual. Suporta IF, FORMAT, TODAY, "
+                    "`.[Date]`, `.[Year]`, etc."
+                )
+
+            pq_formula = st.text_area(
+                "Fórmula Power BI (DAX)",
+                height=140,
+                key="pq_col_formula",
+                placeholder="Minha Coluna = IF([valor] > 100, \"Alto\", \"Baixo\")",
+            )
+
+            if pq_formula.strip():
                 try:
-                    con.execute(f"SELECT * FROM ({new_sql}) __t__ LIMIT 1")
-                    st.session_state.derived_select = new_sql
-                    st.success(f"Coluna `{new_col_name}` adicionada.")
-                    st.rerun()
+                    col_name, duck_expr = translate_power_column(normalize_power_formula(pq_formula))
+                    st.caption(f"Traduzido para DuckDB — coluna `{col_name}`:")
+                    st.code(duck_expr, language="sql")
+                except ParseError as e:
+                    st.warning(f"Fórmula inválida: {e}")
                 except Exception as e:
-                    st.error(f"Expressão inválida: {e}")
+                    st.warning(f"Não foi possível traduzir: {e}")
+
+            if st.button("Adicionar fórmula", key="btn_add_pq_col"):
+                if not pq_formula.strip():
+                    st.warning("Cole uma fórmula no formato: Nome da Coluna = expressão")
+                else:
+                    try:
+                        col_name, duck_expr = translate_power_column(normalize_power_formula(pq_formula))
+                        new_sql = f'SELECT *, ({duck_expr}) AS "{col_name}" FROM ({base_sql}) __t__'
+                        con.execute(f"SELECT * FROM ({new_sql}) __t__ LIMIT 1")
+                        st.session_state.derived_select = new_sql
+                        st.success(f"Coluna `{col_name}` adicionada via fórmula Power BI.")
+                        st.rerun()
+                    except ParseError as e:
+                        st.error(f"Fórmula inválida: {e}")
+                    except Exception as e:
+                        st.error(f"Erro ao aplicar coluna: {e}")
 
     elif op == "Renomear coluna":
         rename_src = st.selectbox("Coluna original", derived_cols, key="rename_src")
