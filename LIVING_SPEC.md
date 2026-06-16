@@ -1,7 +1,7 @@
 # Parquet Query — Especificação Viva
 
 > **Última atualização:** 2026-06-16  
-> **Versão do spec:** 1.0.0  
+> **Versão do spec:** 1.1.0  
 > **Mantenedor:** IA + desenvolvedor (atualização contínua a cada prompt relevante)
 
 ---
@@ -30,7 +30,7 @@ Campos a revisar em cada atualização: `Última atualização`, módulos, fluxo
 | UI | Streamlit (`layout="wide"`) |
 | Engine SQL | DuckDB (conexão singleton por sessão do servidor) |
 | Dados | `data/` (versionado + manifest) |
-| Entrada | `.parquet` em `data/` |
+| Entrada | `.parquet` e `.csv` em `data/` |
 | Saída | Parquet, CSV, XLSX |
 
 **Executar:** `streamlit run app.py` ou `run.bat`
@@ -55,7 +55,7 @@ Parquet Query/
 
 | Arquivo | Papel |
 |---------|-------|
-| `app.py` | Ponto de entrada; sidebar (carregar parquets); 6 abas; session state; helpers DuckDB/paginação/export |
+| `app.py` | Ponto de entrada; sidebar (carregar parquets/CSV); 6 abas; session state; helpers DuckDB/paginação/export |
 | `data_store.py` | Nomenclatura `{base}_v{N}`, timeline, `_manifest.json`, migração `input/`/`output/` → `data/` |
 | `pq_dax_translator.py` | Tokenizer/parser DAX; `translate_power_column`, `normalize_power_formula`; `ParseError` |
 
@@ -66,7 +66,7 @@ Parquet Query/
 ```mermaid
 flowchart LR
     subgraph UI [Streamlit app.py]
-        Sidebar[Sidebar: carregar parquets]
+        Sidebar[Sidebar: carregar arquivos]
         Tabs[6 abas]
     end
     subgraph Engine [DuckDB]
@@ -87,7 +87,7 @@ flowchart LR
 
 ### Fluxo de dados
 
-1. Usuário marca parquets na sidebar → `register_view(stem, path)` cria view DuckDB.
+1. Usuário marca arquivos (`.parquet` / `.csv`) na sidebar → `register_view(stem, path)` cria view DuckDB (`read_parquet` ou `read_csv_auto`).
 2. Tabela ativa usa `working_sql(table)` — SQL derivado ou `SELECT * FROM "table"`.
 3. Transformações na aba **Colunas** empilham `SELECT ... FROM (sql_anterior) __t__` em `derived_by_table`.
 4. Export grava em `data/{base}_v{N}.{ext}` e atualiza manifest via `record_version`.
@@ -182,11 +182,17 @@ streamlit>=1.35
 - **Nova feature na UI:** editar `app.py`; manter padrão de abas/subtabs; usar `work_sql` como base SQL.
 - **Versionamento/export:** usar `data_store.record_version` + `save_to_data`.
 - **Nova função DAX:** estender `pq_dax_translator.py` (`_Parser`, mapeamentos de funções).
-- **Novo formato de arquivo:** atualizar `DATA_EXTENSIONS`, `export_to_bytes`, `save_to_data`.
+- **Novo formato de arquivo:** atualizar `LOADABLE_EXTENSIONS`, `duckdb_read_expr`, `export_to_bytes`, `save_to_data`.
 
 ---
 
 ## Changelog
+
+### 2026-06-16 — v1.1.0 (entrada CSV)
+
+- Sidebar e `register_view` passam a aceitar arquivos `.csv` em `data/` via `read_csv_auto` do DuckDB.
+- UI atualizada (mensagens, rótulo de formato na lista, export “arquivo original”).
+- Arquivos: `app.py`, `LIVING_SPEC.md`.
 
 ### 2026-06-16 — v1.0.0 (criação do spec)
 

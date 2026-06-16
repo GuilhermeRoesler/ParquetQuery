@@ -67,8 +67,22 @@ def fmt_bytes(n: int) -> str:
     return f"{n:.1f} TB"
 
 
+LOADABLE_EXTENSIONS = {".parquet", ".csv"}
+
+
+def duckdb_read_expr(path: Path) -> str:
+    ext = path.suffix.lower()
+    posix = path.as_posix().replace("'", "''")
+    if ext == ".parquet":
+        return f"read_parquet('{posix}')"
+    if ext == ".csv":
+        return f"read_csv_auto('{posix}')"
+    raise ValueError(f"Formato não suportado para leitura: {ext}")
+
+
 def register_view(name: str, path: Path) -> None:
-    con.execute(f'CREATE OR REPLACE VIEW "{name}" AS SELECT * FROM read_parquet(\'{path.as_posix()}\')')
+    source = duckdb_read_expr(path)
+    con.execute(f'CREATE OR REPLACE VIEW "{name}" AS SELECT * FROM {source}')
 
 
 def list_views() -> list[str]:
@@ -251,30 +265,31 @@ with st.sidebar:
     st.caption("Dados versionados em `data/`")
     st.markdown("---")
 
-    parquet_files = [p for p in list_data_files(DATA_DIR) if p.suffix.lower() == ".parquet"]
+    data_files = [p for p in list_data_files(DATA_DIR) if p.suffix.lower() in LOADABLE_EXTENSIONS]
 
-    if not parquet_files:
-        st.warning("Nenhum `.parquet` encontrado em `data/`.")
+    if not data_files:
+        st.warning("Nenhum `.parquet` ou `.csv` encontrado em `data/`.")
     else:
         st.subheader("Bases disponíveis")
         selected: list[Path] = []
-        for pf in parquet_files:
-            size = fmt_bytes(pf.stat().st_size)
-            version = version_from_stem(pf.stem)
+        for df_path in data_files:
+            size = fmt_bytes(df_path.stat().st_size)
+            version = version_from_stem(df_path.stem)
             version_label = "original" if version is None else f"v{version}"
+            fmt_label = df_path.suffix.lower().lstrip(".")
             checked = st.checkbox(
-                f"{pf.stem}  `{size}`  · {version_label}",
-                key=f"chk_{pf.stem}",
+                f"{df_path.stem}  `{size}`  · {version_label} · {fmt_label}",
+                key=f"chk_{df_path.name}",
             )
             if checked:
-                selected.append(pf)
+                selected.append(df_path)
 
         if st.button("Carregar selecionados", type="primary", disabled=not selected):
-            for pf in selected:
-                register_view(pf.stem, pf)
-                if pf.stem not in st.session_state.loaded_tables:
-                    st.session_state.loaded_tables.append(pf.stem)
-                set_derived_sql(pf.stem, None)
+            for df_path in selected:
+                register_view(df_path.stem, df_path)
+                if df_path.stem not in st.session_state.loaded_tables:
+                    st.session_state.loaded_tables.append(df_path.stem)
+                set_derived_sql(df_path.stem, None)
             get_schema.clear()
             get_summarize.clear()
             get_summarize_for.clear()
@@ -313,7 +328,7 @@ with st.sidebar:
 # ---------------------------------------------------------------------------
 if not active:
     st.title("⚡ Parquet Query")
-    st.info("Selecione e carregue um arquivo `.parquet` em `data/` na barra lateral para começar.")
+    st.info("Selecione e carregue um arquivo `.parquet` ou `.csv` em `data/` na barra lateral para começar.")
     st.stop()
 
 current_base = base_name_from(active)
@@ -343,7 +358,7 @@ with tabs[0]:
     with subtab_schema:
         st.dataframe(work_schema_df, use_container_width=True, hide_index=True)
         if has_derived:
-            with st.expander("Schema original do parquet"):
+            with st.expander("Schema original do arquivo"):
                 st.dataframe(schema_df, use_container_width=True, hide_index=True)
 
     with subtab_stats:
@@ -782,7 +797,7 @@ with tabs[5]:
         [
             "Tabela com colunas calculadas",
             "Último resultado (SQL/Filtros/Agrupamento)",
-            "Somente parquet original",
+            "Somente arquivo original",
         ],
         key="export_source",
     )
@@ -933,7 +948,7 @@ with tabs[5]:
                     overwrite=overwrite,
                 )
                 st.success(f"Versão salva em `{dest}`")
-                if dest.suffix.lower() == ".parquet" and dest.stem not in st.session_state.loaded_tables:
+                if dest.suffix.lower() in LOADABLE_EXTENSIONS and dest.stem not in st.session_state.loaded_tables:
                     st.caption("Recarregue o arquivo na barra lateral para trabalhar com esta versão.")
                 st.rerun()
         except FileExistsError as e:
