@@ -157,10 +157,30 @@ def df_to_xlsx_bytes(df: pd.DataFrame) -> bytes:
     return buf.getvalue()
 
 
+def df_to_parquet_bytes(df: pd.DataFrame) -> bytes:
+    buf = io.BytesIO()
+    df.to_parquet(buf, index=False, engine="pyarrow")
+    return buf.getvalue()
+
+
+def export_extension(fmt: str) -> str:
+    return {"CSV": "csv", "XLSX": "xlsx", "Parquet": "parquet"}[fmt]
+
+
+def export_to_bytes(df: pd.DataFrame, fmt: str) -> tuple[bytes, str]:
+    if fmt == "CSV":
+        return df_to_csv_bytes(df), "text/csv"
+    if fmt == "Parquet":
+        return df_to_parquet_bytes(df), "application/vnd.apache.parquet"
+    return df_to_xlsx_bytes(df), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
 def save_to_output(df: pd.DataFrame, filename: str, fmt: str) -> Path:
     dest = OUTPUT_DIR / filename
     if fmt == "CSV":
         df.to_csv(dest, index=False, encoding="utf-8-sig")
+    elif fmt == "Parquet":
+        df.to_parquet(dest, index=False, engine="pyarrow")
     else:
         df.to_excel(dest, index=False, engine="openpyxl")
     return dest
@@ -741,7 +761,7 @@ with tabs[5]:
     with st.expander("SQL que será exportado"):
         st.code(export_sql, language="sql")
 
-    export_fmt = st.radio("Formato", ["CSV", "XLSX"], horizontal=True, key="export_fmt")
+    export_fmt = st.radio("Formato", ["CSV", "XLSX", "Parquet"], horizontal=True, key="export_fmt")
     export_filename = st.text_input(
         "Nome do arquivo (sem extensão)",
         value=f"{active}_export",
@@ -762,15 +782,8 @@ with tabs[5]:
                     )
                     df_exp = df_exp.head(LIMITE_XLSX)
 
-                ext = "csv" if export_fmt == "CSV" else "xlsx"
-                fname = f"{export_filename}.{ext}"
-
-                if export_fmt == "CSV":
-                    data = df_to_csv_bytes(df_exp)
-                    mime = "text/csv"
-                else:
-                    data = df_to_xlsx_bytes(df_exp)
-                    mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                fname = f"{export_filename}.{export_extension(export_fmt)}"
+                data, mime = export_to_bytes(df_exp, export_fmt)
 
                 st.download_button(
                     label=f"Clique para baixar {fname}",
@@ -786,8 +799,7 @@ with tabs[5]:
         try:
             with st.spinner("Salvando..."):
                 df_exp = run_query(export_sql)
-                ext = "csv" if export_fmt == "CSV" else "xlsx"
-                fname = f"{export_filename}.{ext}"
+                fname = f"{export_filename}.{export_extension(export_fmt)}"
 
                 if export_fmt == "XLSX" and len(df_exp) > LIMITE_XLSX:
                     df_exp = df_exp.head(LIMITE_XLSX)
