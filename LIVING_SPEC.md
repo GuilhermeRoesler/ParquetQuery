@@ -1,7 +1,7 @@
 # Parquet Query — Especificação Viva
 
 > **Última atualização:** 2026-06-16  
-> **Versão do spec:** 1.1.0  
+> **Versão do spec:** 1.2.0  
 > **Mantenedor:** IA + desenvolvedor (atualização contínua a cada prompt relevante)
 
 ---
@@ -136,7 +136,7 @@ Caches Streamlit: `get_con` (`@st.cache_resource`), schema/summarize/overview (`
 
 - Entrada: `Nome da Coluna = expressão` (formato Power BI).
 - `normalize_power_formula` limpa referências `'Tabela'[Coluna]` → colunas da view atual.
-- Suporte parcial: IF, FORMAT, TODAY, `.[Date]`, `.[Year]`, operadores, strings.
+- Suporte parcial: IF, VAR/RETURN, comentários `--`/`//`, SUBSTITUTE, FIND, SEARCH, TRIM, LEFT, FORMAT, TODAY, `.[Date]`, `.[Year]`, operadores, strings.
 - Erros: `ParseError` (herda `ValueError`).
 - API pública: `translate_power_column`, `translate_dax_expression`, `normalize_power_formula`.
 
@@ -187,6 +187,12 @@ streamlit>=1.35
 ---
 
 ## Changelog
+
+### 2026-06-16 — v1.2.0 (DAX: strings, VAR, comentários)
+
+- Tradutor DAX: `VAR`/`RETURN`, comentários `--`/`//`, `SUBSTITUTE`, `FIND`, `SEARCH`, `TRIM`.
+- `normalize_power_formula` remove comentários antes de colapsar espaços.
+- Arquivos: `pq_dax_translator.py`, `app.py`, `LIVING_SPEC.md`.
 
 ### 2026-06-16 — v1.1.0 (entrada CSV)
 

@@ -682,8 +682,8 @@ Aging_Atual = IF('fValorNotas'[Dias em Atraso]>360,"9_Acima 361",
                 )
                 st.caption(
                     "Use o formato `Nome = expressão`. Referências `'Tabela'[Coluna]` ou `[Coluna]` "
-                    "são mapeadas para as colunas da view atual. Suporta IF, FORMAT, TODAY, "
-                    "`.[Date]`, `.[Year]`, etc."
+                    "são mapeadas para as colunas da view atual. Suporta IF, VAR/RETURN, comentários `--`, "
+                    "SUBSTITUTE, FIND, SEARCH, TRIM, LEFT, FORMAT, TODAY, `.[Date]`, etc."
                 )
 
             pq_formula = st.text_area(

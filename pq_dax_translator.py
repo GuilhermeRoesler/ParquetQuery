@@ -69,8 +69,22 @@ class _Tokenizer:
         while self._peek() is not None and self._peek() in " \t\r\n":
             self._advance()
 
+    def _skip_comments(self) -> None:
+        """Ignora comentários de linha `--` e `//` (estilo DAX / SQL)."""
+        while True:
+            self._skip_ws()
+            if self._peek() == "-" and self._peek(1) == "-":
+                while self._peek() is not None and self._peek() not in "\r\n":
+                    self._advance()
+                continue
+            if self._peek() == "/" and self._peek(1) == "/":
+                while self._peek() is not None and self._peek() not in "\r\n":
+                    self._advance()
+                continue
+            break
+
     def next_token(self) -> Token:
-        self._skip_ws()
+        self._skip_comments()
         start = self._pos
         ch = self._peek()
         if ch is None:
@@ -161,6 +175,42 @@ class _Parser:
     def __init__(self, source: str) -> None:
         self._tok = _Tokenizer(source)
         self._cur = self._tok.next_token()
+        self._vars: dict[str, str] = {}
+
+    def _resolve_var(self, name: str) -> str | None:
+        if name in self._vars:
+            return self._vars[name]
+        upper = name.upper()
+        if upper in self._vars:
+            return self._vars[upper]
+        return None
+
+    def _register_var(self, name: str, sql_expr: str) -> None:
+        self._vars[name] = sql_expr
+        self._vars[name.upper()] = sql_expr
+
+    def parse(self) -> str:
+        if self._match(TokKind.IDENT, "VAR"):
+            return self._parse_var_block()
+        expr = self._parse_or()
+        if self._cur.kind != TokKind.EOF:
+            raise ParseError(f"Tokens extras após a expressão: '{self._cur.value}'.")
+        return expr
+
+    def _parse_var_block(self) -> str:
+        while self._match(TokKind.IDENT, "VAR"):
+            self._advance()
+            var_name = self._eat(TokKind.IDENT).value
+            self._eat(TokKind.OP, "=")
+            value = self._parse_or()
+            self._register_var(var_name, value)
+        if not self._match(TokKind.IDENT, "RETURN"):
+            raise ParseError("Bloco VAR deve terminar com RETURN.")
+        self._advance()
+        result = self._parse_or()
+        if self._cur.kind != TokKind.EOF:
+            raise ParseError(f"Tokens extras após RETURN: '{self._cur.value}'.")
+        return result
 
     def _eat(self, kind: TokKind, value: str | None = None) -> Token:
         if self._cur.kind != kind or (value is not None and self._cur.value != value):
@@ -172,12 +222,6 @@ class _Parser:
 
     def _match(self, kind: TokKind, value: str | None = None) -> bool:
         return self._cur.kind == kind and (value is None or self._cur.value == value)
-
-    def parse(self) -> str:
-        expr = self._parse_or()
-        if self._cur.kind != TokKind.EOF:
-            raise ParseError(f"Tokens extras após a expressão: '{self._cur.value}'.")
-        return expr
 
     def _parse_or(self) -> str:
         left = self._parse_and()
@@ -281,6 +325,9 @@ class _Parser:
             return self._parse_bracket_column(name_tok.value)
 
         if not self._match(TokKind.LPAREN):
+            resolved = self._resolve_var(name_tok.value)
+            if resolved is not None:
+                return resolved
             return name_tok.value
 
         self._advance()
@@ -343,6 +390,10 @@ class _Parser:
             "LEN": lambda a: self._fn_unary(a, "LENGTH({})"),
             "LEFT": self._fn_left,
             "RIGHT": self._fn_right,
+            "FIND": self._fn_find,
+            "SEARCH": self._fn_search,
+            "SUBSTITUTE": self._fn_substitute,
+            "TRIM": lambda a: self._fn_unary(a, "TRIM(CAST({} AS VARCHAR))"),
             "CONCATENATE": self._fn_concatenate,
             "SWITCH": self._fn_switch,
         }
@@ -413,6 +464,66 @@ class _Parser:
         return f"RIGHT({args[0]}, {args[1]})"
 
     @staticmethod
+    def _str_pos(find_text: str, within_text: str, *, case_insensitive: bool) -> str:
+        haystack = f"CAST({within_text} AS VARCHAR)"
+        needle = f"CAST({find_text} AS VARCHAR)"
+        if case_insensitive:
+            haystack = f"LOWER({haystack})"
+            needle = f"LOWER({needle})"
+        return f"STRPOS({haystack}, {needle})"
+
+    @staticmethod
+    def _str_pos_from(args: list[str], *, case_insensitive: bool) -> str:
+        if len(args) < 2 or len(args) > 4:
+            label = "SEARCH" if case_insensitive else "FIND"
+            raise ParseError(f"{label} espera 2 a 4 argumentos.")
+        find_text, within_text = args[0], args[1]
+        start_num = args[2] if len(args) >= 3 else "1"
+        not_found = args[3] if len(args) == 4 else "0"
+        pos = _Parser._str_pos(find_text, within_text, case_insensitive=case_insensitive)
+        if start_num == "1":
+            pos_expr = pos
+        else:
+            pos_expr = (
+                f"(CASE WHEN STRPOS(SUBSTRING(CAST({within_text} AS VARCHAR), "
+                f"CAST({start_num} AS INTEGER)), CAST({find_text} AS VARCHAR)) > 0 "
+                f"THEN STRPOS(SUBSTRING(CAST({within_text} AS VARCHAR), "
+                f"CAST({start_num} AS INTEGER)), CAST({find_text} AS VARCHAR)) "
+                f"+ CAST({start_num} AS INTEGER) - 1 ELSE 0 END)"
+            )
+            if case_insensitive:
+                pos_expr = (
+                    f"(CASE WHEN STRPOS(LOWER(SUBSTRING(CAST({within_text} AS VARCHAR), "
+                    f"CAST({start_num} AS INTEGER))), LOWER(CAST({find_text} AS VARCHAR))) > 0 "
+                    f"THEN STRPOS(LOWER(SUBSTRING(CAST({within_text} AS VARCHAR), "
+                    f"CAST({start_num} AS INTEGER))), LOWER(CAST({find_text} AS VARCHAR))) "
+                    f"+ CAST({start_num} AS INTEGER) - 1 ELSE 0 END)"
+                )
+        return f"CASE WHEN ({pos_expr}) > 0 THEN ({pos_expr}) ELSE {not_found} END"
+
+    @classmethod
+    def _fn_find(cls, args: list[str]) -> str:
+        return cls._str_pos_from(args, case_insensitive=False)
+
+    @classmethod
+    def _fn_search(cls, args: list[str]) -> str:
+        return cls._str_pos_from(args, case_insensitive=True)
+
+    @staticmethod
+    def _fn_substitute(args: list[str]) -> str:
+        if len(args) == 3:
+            text, old, new = args
+            return (
+                f"REPLACE(CAST({text} AS VARCHAR), CAST({old} AS VARCHAR), "
+                f"CAST({new} AS VARCHAR))"
+            )
+        if len(args) == 4:
+            raise ParseError(
+                "SUBSTITUTE com número de ocorrência (4º argumento) ainda não suportado."
+            )
+        raise ParseError("SUBSTITUTE espera 3 ou 4 argumentos.")
+
+    @staticmethod
     def _fn_concatenate(args: list[str]) -> str:
         if len(args) < 2:
             raise ParseError("CONCATENATE espera ao menos 2 argumentos.")
@@ -453,6 +564,38 @@ def translate_power_column(definition: str) -> tuple[str, str]:
     return name, sql_expr
 
 
+def strip_dax_comments(text: str) -> str:
+    """Remove comentários de linha `--` e `//` respeitando strings."""
+    lines: list[str] = []
+    for line in text.splitlines():
+        cleaned = _strip_line_comment(line)
+        if cleaned.strip():
+            lines.append(cleaned)
+    return "\n".join(lines)
+
+
+def _strip_line_comment(line: str) -> str:
+    in_string: str | None = None
+    i = 0
+    while i < len(line):
+        ch = line[i]
+        if in_string:
+            if ch == in_string and i + 1 < len(line) and line[i + 1] == in_string:
+                i += 2
+                continue
+            if ch == in_string:
+                in_string = None
+        elif ch in ("'", '"'):
+            in_string = ch
+        elif ch == "-" and i + 1 < len(line) and line[i + 1] == "-":
+            return line[:i].rstrip()
+        elif ch == "/" and i + 1 < len(line) and line[i + 1] == "/":
+            return line[:i].rstrip()
+        i += 1
+    return line
+
+
 def normalize_power_formula(text: str) -> str:
-    """Remove quebras de linha extras e espaços redundantes."""
-    return re.sub(r"\s+", " ", text.strip())
+    """Remove comentários e colapsa espaços em branco redundantes."""
+    without_comments = strip_dax_comments(text.strip())
+    return re.sub(r"\s+", " ", without_comments).strip()
