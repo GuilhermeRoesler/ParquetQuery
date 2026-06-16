@@ -1,4 +1,4 @@
 *.parquet
 *.csv
-input
+data
 *.pyc

@@ -4,22 +4,34 @@
 from __future__ import annotations
 
 import io
-import os
 from pathlib import Path
 
 import duckdb
 import pandas as pd
 import streamlit as st
 
+from data_store import (
+    base_name_from,
+    build_timeline,
+    files_for_version,
+    list_data_files,
+    list_version_numbers,
+    load_manifest,
+    migrate_legacy_dirs,
+    next_available_version,
+    record_version,
+    version_from_stem,
+    versioned_stem,
+)
 from pq_dax_translator import ParseError, normalize_power_formula, translate_power_column
 
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
 BASE = Path(__file__).resolve().parent
-INPUT_DIR = BASE / "input"
-OUTPUT_DIR = BASE / "output"
-OUTPUT_DIR.mkdir(exist_ok=True)
+DATA_DIR = BASE / "data"
+DATA_DIR.mkdir(exist_ok=True)
+migrate_legacy_dirs(DATA_DIR, BASE)
 
 AGGS = ["SUM", "AVG", "COUNT", "COUNT DISTINCT", "MIN", "MAX", "FIRST", "LAST"]
 CAST_TYPES = ["VARCHAR", "INTEGER", "BIGINT", "DOUBLE", "BOOLEAN", "DATE", "TIMESTAMP"]
@@ -175,8 +187,16 @@ def export_to_bytes(df: pd.DataFrame, fmt: str) -> tuple[bytes, str]:
     return df_to_xlsx_bytes(df), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
-def save_to_output(df: pd.DataFrame, filename: str, fmt: str) -> Path:
-    dest = OUTPUT_DIR / filename
+def save_to_data(
+    df: pd.DataFrame,
+    dest: Path,
+    fmt: str,
+    *,
+    overwrite: bool,
+) -> Path:
+    if dest.exists() and not overwrite:
+        raise FileExistsError(f"O arquivo `{dest.name}` já existe.")
+    dest.parent.mkdir(parents=True, exist_ok=True)
     if fmt == "CSV":
         df.to_csv(dest, index=False, encoding="utf-8-sig")
     elif fmt == "Parquet":
@@ -228,18 +248,24 @@ _init_state()
 # ---------------------------------------------------------------------------
 with st.sidebar:
     st.title("⚡ Parquet Query")
+    st.caption("Dados versionados em `data/`")
     st.markdown("---")
 
-    parquet_files = sorted(INPUT_DIR.glob("*.parquet"))
+    parquet_files = [p for p in list_data_files(DATA_DIR) if p.suffix.lower() == ".parquet"]
 
     if not parquet_files:
-        st.warning("Nenhum `.parquet` encontrado em `input/`.")
+        st.warning("Nenhum `.parquet` encontrado em `data/`.")
     else:
-        st.subheader("Arquivos disponíveis")
+        st.subheader("Bases disponíveis")
         selected: list[Path] = []
         for pf in parquet_files:
             size = fmt_bytes(pf.stat().st_size)
-            checked = st.checkbox(f"{pf.stem}  `{size}`", key=f"chk_{pf.stem}")
+            version = version_from_stem(pf.stem)
+            version_label = "original" if version is None else f"v{version}"
+            checked = st.checkbox(
+                f"{pf.stem}  `{size}`  · {version_label}",
+                key=f"chk_{pf.stem}",
+            )
             if checked:
                 selected.append(pf)
 
@@ -263,9 +289,20 @@ with st.sidebar:
         active = st.selectbox("Selecionar tabela", loaded, key="active_table")
         if active:
             base_sql = working_sql(active)
-            st.caption(f"{count_rows_sql(base_sql):,} linhas")
+            current_base = base_name_from(active)
+            st.caption(f"Base: `{current_base}` · {count_rows_sql(base_sql):,} linhas")
             if active in st.session_state.derived_by_table:
                 st.caption("Colunas calculadas ativas")
+
+            timeline = build_timeline(DATA_DIR, current_base)
+            if timeline:
+                with st.expander("Timeline de versões", expanded=False):
+                    for item in timeline:
+                        files = ", ".join(f"`{f.name}`" for f in item["files"]) or "—"
+                        meta = item.get("meta") or {}
+                        updated = meta.get("updated_at") or meta.get("created_at")
+                        when = f" · {updated[:16].replace('T', ' ')}" if updated else ""
+                        st.markdown(f"**{item['label']}** — {files}{when}")
     else:
         st.info("Carregue ao menos um arquivo.")
         active = None
@@ -276,8 +313,10 @@ with st.sidebar:
 # ---------------------------------------------------------------------------
 if not active:
     st.title("⚡ Parquet Query")
-    st.info("Selecione e carregue um arquivo `.parquet` na barra lateral para começar.")
+    st.info("Selecione e carregue um arquivo `.parquet` em `data/` na barra lateral para começar.")
     st.stop()
+
+current_base = base_name_from(active)
 
 schema_df = get_schema(active)
 work_sql = working_sql(active)
@@ -736,6 +775,7 @@ Aging_Atual = IF('fValorNotas'[Dias em Atraso]>360,"9_Acima 361",
 # ===========================================================================
 with tabs[5]:
     st.header("Exportar")
+    st.caption(f"Base de dados: `{current_base}` · destino padrão: `data/`")
 
     export_source = st.radio(
         "O que exportar?",
@@ -761,12 +801,84 @@ with tabs[5]:
     with st.expander("SQL que será exportado"):
         st.code(export_sql, language="sql")
 
-    export_fmt = st.radio("Formato", ["CSV", "XLSX", "Parquet"], horizontal=True, key="export_fmt")
-    export_filename = st.text_input(
-        "Nome do arquivo (sem extensão)",
-        value=f"{active}_export",
-        key="export_filename",
-    )
+    timeline = build_timeline(DATA_DIR, current_base)
+    existing_versions = list_version_numbers(DATA_DIR, current_base)
+    next_version = next_available_version(DATA_DIR, current_base)
+
+    col_timeline, col_config = st.columns([1.2, 1])
+    with col_timeline:
+        st.subheader("Timeline")
+        if timeline:
+            rows = []
+            for item in timeline:
+                files = ", ".join(f.name for f in item["files"])
+                meta = item.get("meta") or {}
+                rows.append(
+                    {
+                        "Versão": item["label"],
+                        "Arquivo(s)": files or "—",
+                        "Formato": meta.get("format", "—"),
+                        "Origem": meta.get("export_source", "—"),
+                        "Atualizado": (meta.get("updated_at") or meta.get("created_at") or "—")[:16].replace("T", " "),
+                    }
+                )
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        else:
+            st.info("Nenhuma versão registrada ainda. A primeira exportação será `_v1`.")
+
+    with col_config:
+        st.subheader("Versionamento")
+        export_fmt = st.radio("Formato", ["Parquet", "CSV", "XLSX"], horizontal=True, key="export_fmt")
+        version_mode = st.radio(
+            "Modo",
+            ["Nova versão", "Sobrescrever versão"],
+            horizontal=True,
+            key="export_version_mode",
+        )
+
+        if version_mode == "Nova versão":
+            export_version = next_version
+            suggested_stem = versioned_stem(current_base, export_version)
+            st.caption(f"Próxima versão disponível: **v{export_version}**")
+        else:
+            if not existing_versions:
+                st.warning("Não há versões `_vN` para sobrescrever.")
+                export_version = next_version
+                suggested_stem = versioned_stem(current_base, export_version)
+            else:
+                export_version = st.selectbox(
+                    "Versão existente",
+                    existing_versions,
+                    format_func=lambda v: f"v{v}",
+                    key="export_overwrite_version",
+                )
+                suggested_stem = versioned_stem(current_base, export_version)
+                existing_files = files_for_version(DATA_DIR, current_base, export_version)
+                if existing_files:
+                    st.warning(
+                        "Sobrescrever substitui: "
+                        + ", ".join(f"`{f.name}`" for f in existing_files)
+                    )
+
+        defaults_key = f"{current_base}:{version_mode}:{export_version}:{export_fmt}"
+        if st.session_state.get("export_defaults_key") != defaults_key:
+            st.session_state.export_filename = suggested_stem
+            st.session_state.export_defaults_key = defaults_key
+
+        export_filename = st.text_input(
+            "Nome do arquivo (sem extensão)",
+            key="export_filename",
+        )
+
+        manifest = load_manifest(DATA_DIR)
+        version_meta = manifest.get("bases", {}).get(current_base, {}).get("versions", {}).get(str(export_version))
+        if version_meta:
+            with st.expander("Configuração da versão selecionada"):
+                st.json(version_meta)
+
+    overwrite = version_mode == "Sobrescrever versão" and bool(existing_versions)
+    dest_path = DATA_DIR / f"{export_filename}.{export_extension(export_fmt)}"
+    st.caption(f"Destino: `{dest_path}`")
 
     col_dl, col_save = st.columns(2)
 
@@ -795,17 +907,36 @@ with tabs[5]:
         except Exception as e:
             st.error(f"Erro ao exportar: {e}")
 
-    if col_save.button("Salvar em output/", key="btn_save_output"):
+    if col_save.button("Salvar em data/", key="btn_save_data"):
         try:
             with st.spinner("Salvando..."):
                 df_exp = run_query(export_sql)
-                fname = f"{export_filename}.{export_extension(export_fmt)}"
 
                 if export_fmt == "XLSX" and len(df_exp) > LIMITE_XLSX:
                     df_exp = df_exp.head(LIMITE_XLSX)
                     st.warning(f"Exportado com limite de {LIMITE_XLSX:,} linhas.")
 
-                dest = save_to_output(df_exp, fname, export_fmt)
-                st.success(f"Salvo em `{dest}`")
+                if overwrite:
+                    for old_file in files_for_version(DATA_DIR, current_base, export_version):
+                        if old_file != dest_path:
+                            old_file.unlink()
+
+                dest = save_to_data(df_exp, dest_path, export_fmt, overwrite=overwrite)
+                record_version(
+                    DATA_DIR,
+                    current_base,
+                    export_version,
+                    filename=dest.name,
+                    fmt=export_fmt,
+                    source_table=active,
+                    export_source=export_source,
+                    overwrite=overwrite,
+                )
+                st.success(f"Versão salva em `{dest}`")
+                if dest.suffix.lower() == ".parquet" and dest.stem not in st.session_state.loaded_tables:
+                    st.caption("Recarregue o arquivo na barra lateral para trabalhar com esta versão.")
+                st.rerun()
+        except FileExistsError as e:
+            st.error(str(e))
         except Exception as e:
             st.error(f"Erro ao salvar: {e}")
