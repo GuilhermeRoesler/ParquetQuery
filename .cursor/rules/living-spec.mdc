@@ -1,0 +1,27 @@
+---
+description: Especificação viva do Parquet Query — contexto e atualização contínua
+alwaysApply: true
+---
+
+# Especificação viva
+
+Antes de implementar ou explicar algo neste projeto, leia **`LIVING_SPEC.md`** na raiz.
+
+## Ao concluir mudanças relevantes
+
+Atualize `LIVING_SPEC.md` na mesma sessão:
+
+1. `Última atualização` e `Versão do spec`
+2. Seções afetadas (módulos, abas, convenções, dependências)
+3. Nova entrada no **Changelog** (data, o quê, quais arquivos)
+
+## Regras rápidas (não substituem o spec)
+
+- App Streamlit + DuckDB; dados em `data/` com versionamento `{base}_vN`
+- SQL de trabalho: `working_sql()` / `derived_by_table` em `app.py`
+- DAX: `pq_dax_translator.py` → SQL DuckDB
+- Paginação pesada: `paginate_sql`, não DataFrame inteiro
+- Código em português na UI; Python com type hints e `pathlib`
+- Diff mínimo; sem refatoração não solicitada
+
+Se o spec e o código divergirem, **corrija o spec** ou o código — nunca deixe os dois inconsistentes.
