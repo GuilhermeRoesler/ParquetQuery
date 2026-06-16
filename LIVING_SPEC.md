@@ -1,7 +1,7 @@
 # Parquet Query — Especificação Viva
 
 > **Última atualização:** 2026-06-16  
-> **Versão do spec:** 1.2.0  
+> **Versão do spec:** 1.3.0  
 > **Mantenedor:** IA + desenvolvedor (atualização contínua a cada prompt relevante)
 
 ---
@@ -88,8 +88,8 @@ flowchart LR
 ### Fluxo de dados
 
 1. Usuário marca arquivos (`.parquet` / `.csv`) na sidebar → `register_view(stem, path)` cria view DuckDB (`read_parquet` ou `read_csv_auto`).
-2. Tabela ativa usa `working_sql(table)` — SQL derivado ou `SELECT * FROM "table"`.
-3. Transformações na aba **Colunas** empilham `SELECT ... FROM (sql_anterior) __t__` em `derived_by_table`.
+2. Tabela ativa usa `work_from(table)` — `"tabela"` ou `({sql_derivado}) __work__` quando há colunas calculadas.
+3. Transformações na aba **Colunas** empilham via `build_derived_select` em `derived_by_table`.
 4. Export grava em `data/{base}_v{N}.{ext}` e atualiza manifest via `record_version`.
 
 ---
@@ -146,7 +146,7 @@ Caches Streamlit: `get_con` (`@st.cache_resource`), schema/summarize/overview (`
 
 - Python com `from __future__ import annotations`.
 - Paths via `pathlib.Path`; SQL com identificadores entre aspas duplas `"coluna"`.
-- Subqueries envolvidas: `FROM ({sql}) __base__` ou `__t__` / `__q__`.
+- Subqueries derivadas: `work_from()` → `"coluna"` ou `({derived}) __work__`; validação interna usa `__validate__`.
 - Paginação pesada: `paginate_sql` (COUNT + LIMIT/OFFSET no DuckDB), não `paginate` em DataFrame grande.
 - Limite XLSX: `LIMITE_XLSX = 1_048_576` (limite do Excel).
 - UI em português; mensagens de erro amigáveis via `st.error` / `st.warning`.
@@ -187,6 +187,13 @@ streamlit>=1.35
 ---
 
 ## Changelog
+
+### 2026-06-16 — v1.3.0 (SQL simplificado + work_from)
+
+- Queries padrão usam `SELECT * FROM "tabela" LIMIT 100` sem subquery redundante.
+- `work_from()` / `build_derived_select()` unificam base de trabalho; subquery `__work__` só com colunas calculadas.
+- Editor SQL reseta ao trocar tabela ou transformações; `strip_sql` remove `;` final (evita erro na paginação).
+- Arquivos: `app.py`, `LIVING_SPEC.md`.
 
 ### 2026-06-16 — v1.2.0 (DAX: strings, VAR, comentários)
 

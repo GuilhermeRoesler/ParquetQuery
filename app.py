@@ -104,35 +104,37 @@ def count_rows(table: str) -> int:
     return con.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0]
 
 
-def build_value_overview_sql(base_sql: str, col: str) -> str:
+def build_value_overview_sql(table: str, col: str) -> str:
     return (
         f'SELECT "{col}", COUNT(*) AS "quantidade"\n'
-        f'FROM ({base_sql}) __base__\n'
+        f"FROM {work_from(table)}\n"
         f'GROUP BY "{col}"\n'
         f'ORDER BY "quantidade" DESC'
     )
 
 
 @st.cache_data(ttl=300)
-def get_value_overview(base_sql: str, col: str) -> pd.DataFrame:
-    return con.execute(build_value_overview_sql(base_sql, col)).df()
+def get_value_overview(table: str, col: str) -> pd.DataFrame:
+    return con.execute(build_value_overview_sql(table, col)).df()
 
 
-def get_distinct_values(base_sql: str, col: str, limit: int = 500) -> list:
+def get_distinct_values(table: str, col: str, limit: int = 500) -> list:
     rows = con.execute(
-        f'SELECT DISTINCT "{col}" FROM ({base_sql}) __base__ '
+        f'SELECT DISTINCT "{col}" FROM {work_from(table)} '
         f'WHERE "{col}" IS NOT NULL ORDER BY 1 LIMIT {limit}'
     ).fetchall()
     return [r[0] for r in rows]
 
 
 @st.cache_data(ttl=300)
-def get_summarize_for(base_sql: str) -> pd.DataFrame:
-    return con.execute(f"SUMMARIZE ({base_sql})").df()
+def get_summarize_for(table: str) -> pd.DataFrame:
+    derived = get_derived_sql(table)
+    target = f"({derived})" if derived else f'"{table}"'
+    return con.execute(f"SUMMARIZE {target}").df()
 
 
-def count_rows_sql(base_sql: str) -> int:
-    return con.execute(f"SELECT COUNT(*) FROM ({base_sql}) __base__").fetchone()[0]
+def count_work_rows(table: str) -> int:
+    return con.execute(f"SELECT COUNT(*) FROM {work_from(table)}").fetchone()[0]
 
 
 def run_query(sql: str) -> pd.DataFrame:
@@ -157,6 +159,7 @@ def paginate(df: pd.DataFrame, key: str, page_size: int = 500) -> pd.DataFrame:
 
 def paginate_sql(sql: str, key: str, page_size: int = 500) -> tuple[pd.DataFrame, int]:
     """Paginação diretamente no DuckDB — não carrega tudo na RAM."""
+    sql = strip_sql(sql)
     total = con.execute(f"SELECT COUNT(*) FROM ({sql}) __q__").fetchone()[0]
     pages = max(1, (total + page_size - 1) // page_size)
     page = st.number_input(
@@ -238,8 +241,38 @@ def _init_state() -> None:
     st.session_state.pop("working_sql_cache", None)
 
 
+def strip_sql(sql: str) -> str:
+    """Remove espaços e ponto-e-vírgula final."""
+    return sql.strip().rstrip(";")
+
+
+def get_derived_sql(table: str) -> str | None:
+    return st.session_state.derived_by_table.get(table)
+
+
+def has_derived_sql(table: str) -> bool:
+    return table in st.session_state.derived_by_table
+
+
+def work_from(table: str) -> str:
+    """Fragmento para cláusula FROM: tabela DuckDB ou subquery derivada."""
+    derived = get_derived_sql(table)
+    if derived:
+        return f"({derived}) __work__"
+    return f'"{table}"'
+
+
+def default_preview_sql(table: str, *, limit: int = 100) -> str:
+    return f"SELECT * FROM {work_from(table)} LIMIT {limit}"
+
+
+def build_derived_select(table: str, select_expr: str) -> str:
+    return f"SELECT {select_expr} FROM {work_from(table)}"
+
+
 def working_sql(table: str) -> str:
-    derived = st.session_state.derived_by_table.get(table)
+    """SQL completo da base de trabalho (para export/DESCRIBE)."""
+    derived = get_derived_sql(table)
     if derived:
         return derived
     return f'SELECT * FROM "{table}"'
@@ -252,6 +285,7 @@ def set_derived_sql(table: str, sql: str | None) -> None:
         st.session_state.derived_by_table.pop(table, None)
     get_value_overview.clear()
     get_summarize_for.clear()
+    st.session_state.pop("sql_editor_ctx", None)
 
 
 _init_state()
@@ -303,10 +337,9 @@ with st.sidebar:
         st.subheader("Tabela ativa")
         active = st.selectbox("Selecionar tabela", loaded, key="active_table")
         if active:
-            base_sql = working_sql(active)
             current_base = base_name_from(active)
-            st.caption(f"Base: `{current_base}` · {count_rows_sql(base_sql):,} linhas")
-            if active in st.session_state.derived_by_table:
+            st.caption(f"Base: `{current_base}` · {count_work_rows(active):,} linhas")
+            if has_derived_sql(active):
                 st.caption("Colunas calculadas ativas")
 
             timeline = build_timeline(DATA_DIR, current_base)
@@ -334,11 +367,20 @@ if not active:
 current_base = base_name_from(active)
 
 schema_df = get_schema(active)
+work_from_clause = work_from(active)
 work_sql = working_sql(active)
-work_schema_df = con.execute(f"DESCRIBE ({work_sql})").df()
+if has_derived_sql(active):
+    work_schema_df = con.execute(f"DESCRIBE ({get_derived_sql(active)})").df()
+else:
+    work_schema_df = schema_df
 col_names = work_schema_df["column_name"].tolist()
 col_types = dict(zip(work_schema_df["column_name"], work_schema_df["column_type"]))
-has_derived = active in st.session_state.derived_by_table
+has_derived = has_derived_sql(active)
+
+sql_editor_ctx = f"{active}:{'derived' if has_derived else 'raw'}"
+if st.session_state.get("sql_editor_ctx") != sql_editor_ctx:
+    st.session_state.sql_editor = default_preview_sql(active)
+    st.session_state.sql_editor_ctx = sql_editor_ctx
 
 tabs = st.tabs(["Explorar", "SQL", "Filtros", "Agrupar", "Colunas", "Exportar"])
 
@@ -365,11 +407,11 @@ with tabs[0]:
         st.caption("Estatísticas calculadas pelo DuckDB (`SUMMARIZE`). Pode demorar alguns segundos na primeira vez.")
         if st.button("Calcular estatísticas", key="btn_summarize"):
             with st.spinner("Calculando..."):
-                st.dataframe(get_summarize_for(work_sql), use_container_width=True, hide_index=True)
+                st.dataframe(get_summarize_for(active), use_container_width=True, hide_index=True)
 
     with subtab_overview:
         overview_col = st.selectbox("Coluna", col_names, key="overview_col")
-        overview_sql = build_value_overview_sql(work_sql, overview_col)
+        overview_sql = build_value_overview_sql(active, overview_col)
 
         with st.expander("SQL gerado"):
             st.code(overview_sql, language="sql")
@@ -377,7 +419,7 @@ with tabs[0]:
         if st.button("Calcular overview", type="primary", key="btn_value_overview"):
             try:
                 with st.spinner("Calculando frequências..."):
-                    df_overview = get_value_overview(work_sql, overview_col)
+                    df_overview = get_value_overview(active, overview_col)
                     distinct_count = len(df_overview)
                     total_rows = int(df_overview["quantidade"].sum()) if not df_overview.empty else 0
                     st.success(
@@ -398,7 +440,7 @@ with tabs[0]:
             key="preview_cols",
         )
         cols_expr = ", ".join(f'"{c}"' for c in preview_cols) if preview_cols else "*"
-        preview_sql = f"SELECT {cols_expr} FROM ({work_sql}) __base__"
+        preview_sql = f"SELECT {cols_expr} FROM {work_from_clause}"
         df_preview, total_preview = paginate_sql(preview_sql, key="preview_page")
         st.dataframe(df_preview, use_container_width=True, hide_index=True)
 
@@ -412,30 +454,40 @@ with tabs[1]:
     with st.expander("Referência rápida — tabelas e exemplos"):
         st.markdown(f"**Tabela ativa:** `{active}`")
         if has_derived:
-            st.markdown("**Base de trabalho:** tabela com colunas calculadas (aba Colunas)")
+            st.markdown("**Base de trabalho:** inclui colunas calculadas (aba Colunas)")
+            st.caption(
+                f"Para ver todas as colunas, use `FROM {work_from_clause}` — "
+                f"consultar só `\"{active}\"` retorna apenas o arquivo original."
+            )
         st.markdown("**Todas as tabelas carregadas:** " + ", ".join(f"`{t}`" for t in loaded))
         st.markdown("**Colunas disponíveis:** " + ", ".join(f"`{c}`" for c in col_names))
+        frm = work_from_clause
+        derived_note = (
+            "\n-- Com colunas calculadas: use a subquery __work__ (gerada automaticamente)\n"
+            if has_derived
+            else ""
+        )
         st.code(
-            f"""-- Preview (inclui colunas calculadas)
-SELECT * FROM ({work_sql}) __base__ LIMIT 100;
+            f"""-- Preview{derived_note}
+SELECT * FROM {frm} LIMIT 100;
 
 -- Filtrar
-SELECT * FROM ({work_sql}) __base__ WHERE valor > 1000;
+SELECT * FROM {frm} WHERE valor > 1000;
 
 -- Agrupar
 SELECT categoria, SUM(valor) AS total
-FROM ({work_sql}) __base__
+FROM {frm}
 GROUP BY 1 ORDER BY 2 DESC;
 """,
             language="sql",
         )
 
+    default_sql = default_preview_sql(active)
     sql_input = st.text_area(
         "Query DuckDB",
-        value=st.session_state.get("sql_editor", f"SELECT * FROM ({work_sql}) __base__ LIMIT 100"),
         height=180,
         key="sql_editor",
-        placeholder=f"SELECT * FROM ({work_sql}) __base__ LIMIT 100",
+        placeholder=default_sql,
     )
 
     col_run, col_clear = st.columns([1, 5])
@@ -444,15 +496,15 @@ GROUP BY 1 ORDER BY 2 DESC;
     if run_btn and sql_input.strip():
         try:
             with st.spinner("Executando..."):
-                # Conta linhas para paginação apenas se for SELECT
-                stripped = sql_input.strip().upper()
+                query = strip_sql(sql_input)
+                stripped = query.upper()
                 if stripped.startswith("SELECT") or stripped.startswith("WITH"):
-                    df_sql, total_sql = paginate_sql(sql_input, key="sql_page")
-                    st.session_state.last_result_sql = sql_input
+                    df_sql, total_sql = paginate_sql(query, key="sql_page")
+                    st.session_state.last_result_sql = query
                     st.success(f"{total_sql:,} linhas no resultado.")
                     st.dataframe(df_sql, use_container_width=True, hide_index=True)
                 else:
-                    con.execute(sql_input)
+                    con.execute(query)
                     st.success("Comando executado.")
         except Exception as e:
             st.error(f"Erro SQL: {e}")
@@ -481,7 +533,7 @@ with tabs[2]:
         if f_cat == "numeric":
             try:
                 mn, mx = con.execute(
-                    f'SELECT MIN("{f_col}"), MAX("{f_col}") FROM ({work_sql}) __base__'
+                    f'SELECT MIN("{f_col}"), MAX("{f_col}") FROM {work_from_clause}'
                 ).fetchone()
                 mn = float(mn or 0)
                 mx = float(mx or 0)
@@ -500,7 +552,7 @@ with tabs[2]:
         elif f_cat == "date":
             try:
                 mn_d, mx_d = con.execute(
-                    f'SELECT MIN("{f_col}"::DATE), MAX("{f_col}"::DATE) FROM ({work_sql}) __base__'
+                    f'SELECT MIN("{f_col}"::DATE), MAX("{f_col}"::DATE) FROM {work_from_clause}'
                 ).fetchone()
             except Exception:
                 mn_d, mx_d = None, None
@@ -513,7 +565,7 @@ with tabs[2]:
         else:  # text
             f_text_op = st.selectbox("Operador", ["IN (seleção)", "LIKE", "NOT LIKE", "IS NULL", "IS NOT NULL"], key="f_text_op")
             if f_text_op == "IN (seleção)":
-                opts = get_distinct_values(work_sql, f_col)
+                opts = get_distinct_values(active, f_col)
                 chosen = st.multiselect("Valores", opts, key="f_vals")
                 if chosen:
                     vals_str = ", ".join(f"'{v}'" for v in chosen)
@@ -550,7 +602,7 @@ with tabs[2]:
             st.rerun()
 
         where_clause = " AND ".join(f['clause'] for f in st.session_state.filters)
-        filter_sql = f"SELECT * FROM ({work_sql}) __base__ WHERE {where_clause}"
+        filter_sql = f"SELECT * FROM {work_from_clause} WHERE {where_clause}"
 
         with st.expander("SQL gerado"):
             st.code(filter_sql, language="sql")
@@ -611,7 +663,7 @@ with tabs[3]:
 
             group_expr = ", ".join(f'"{c}"' for c in group_cols)
             select_expr = group_expr + ", " + ", ".join(agg_exprs)
-            group_sql = f"SELECT {select_expr} FROM ({work_sql}) __base__ GROUP BY {group_expr}"
+            group_sql = f"SELECT {select_expr} FROM {work_from_clause} GROUP BY {group_expr}"
             if order_col != "(sem ordenação)":
                 group_sql += f' ORDER BY "{order_col}" {order_dir}'
 
@@ -634,7 +686,7 @@ with tabs[3]:
 with tabs[4]:
     st.header("Transformar Colunas")
 
-    base_sql = work_sql
+    base_table = active
     derived_cols = col_names
 
     op = st.radio(
@@ -662,9 +714,11 @@ with tabs[4]:
             )
             if st.button("Adicionar", key="btn_add_col"):
                 if new_col_name and new_col_expr:
-                    new_sql = f'SELECT *, ({new_col_expr}) AS "{new_col_name}" FROM ({base_sql}) __t__'
+                    new_sql = build_derived_select(
+                        base_table, f'*, ({new_col_expr}) AS "{new_col_name}"'
+                    )
                     try:
-                        con.execute(f"SELECT * FROM ({new_sql}) __t__ LIMIT 1")
+                        con.execute(f"SELECT * FROM ({new_sql}) __validate__ LIMIT 1")
                         set_derived_sql(active, new_sql)
                         st.success(f"Coluna `{new_col_name}` adicionada.")
                         st.rerun()
@@ -709,8 +763,10 @@ Aging_Atual = IF('fValorNotas'[Dias em Atraso]>360,"9_Acima 361",
                 else:
                     try:
                         col_name, duck_expr = translate_power_column(normalize_power_formula(pq_formula))
-                        new_sql = f'SELECT *, ({duck_expr}) AS "{col_name}" FROM ({base_sql}) __t__'
-                        con.execute(f"SELECT * FROM ({new_sql}) __t__ LIMIT 1")
+                        new_sql = build_derived_select(
+                            base_table, f'*, ({duck_expr}) AS "{col_name}"'
+                        )
+                        con.execute(f"SELECT * FROM ({new_sql}) __validate__ LIMIT 1")
                         set_derived_sql(active, new_sql)
                         st.success(f"Coluna `{col_name}` adicionada via fórmula Power BI.")
                         st.rerun()
@@ -728,7 +784,7 @@ Aging_Atual = IF('fValorNotas'[Dias em Atraso]>360,"9_Acima 361",
                     f'"{c}" AS "{rename_dst}"' if c == rename_src else f'"{c}"'
                     for c in derived_cols
                 )
-                new_sql = f"SELECT {col_list} FROM ({base_sql}) __t__"
+                new_sql = build_derived_select(base_table, col_list)
                 set_derived_sql(active, new_sql)
                 st.success(f"`{rename_src}` renomeada para `{rename_dst}`.")
                 st.rerun()
@@ -739,7 +795,7 @@ Aging_Atual = IF('fValorNotas'[Dias em Atraso]>360,"9_Acima 361",
             if drop_cols:
                 keep = [c for c in derived_cols if c not in drop_cols]
                 col_list = ", ".join(f'"{c}"' for c in keep)
-                new_sql = f"SELECT {col_list} FROM ({base_sql}) __t__"
+                new_sql = build_derived_select(base_table, col_list)
                 set_derived_sql(active, new_sql)
                 st.success(f"{len(drop_cols)} coluna(s) removida(s).")
                 st.rerun()
@@ -752,9 +808,9 @@ Aging_Atual = IF('fValorNotas'[Dias em Atraso]>360,"9_Acima 361",
                 f'TRY_CAST("{c}" AS {cast_type}) AS "{c}"' if c == cast_col else f'"{c}"'
                 for c in derived_cols
             )
-            new_sql = f"SELECT {col_list} FROM ({base_sql}) __t__"
+            new_sql = build_derived_select(base_table, col_list)
             try:
-                con.execute(f"SELECT * FROM ({new_sql}) __t__ LIMIT 1")
+                con.execute(f"SELECT * FROM ({new_sql}) __validate__ LIMIT 1")
                 set_derived_sql(active, new_sql)
                 st.success(f"`{cast_col}` convertida para `{cast_type}`.")
                 st.rerun()
