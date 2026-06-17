@@ -1,7 +1,7 @@
 # Parquet Query — Especificação Viva
 
 > **Última atualização:** 2026-06-17  
-> **Versão do spec:** 1.4.3  
+> **Versão do spec:** 1.5.1  
 > **Mantenedor:** IA + desenvolvedor (atualização contínua a cada prompt relevante)
 
 ---
@@ -44,6 +44,7 @@ Parquet Query/
 ├── app.py                 # UI Streamlit + lógica de queries/export
 ├── data_store.py          # Versionamento, manifest, migração legacy
 ├── pq_dax_translator.py   # Tradutor DAX → SQL DuckDB
+├── pq_m_translator.py     # Tradutor Power Query (M) → SQL DuckDB
 ├── data/                  # Arquivos de dados + _manifest.json
 ├── utils/                 # Scripts utilitários (conversão parquet→csv/xlsx)
 ├── requirements.txt
@@ -58,6 +59,7 @@ Parquet Query/
 | `app.py` | Ponto de entrada; sidebar (carregar parquets/CSV); 4 abas; session state; helpers DuckDB/paginação/export |
 | `data_store.py` | Nomenclatura `{base}_v{N}`, timeline, `_manifest.json`, migração `input/`/`output/` → `data/` |
 | `pq_dax_translator.py` | Tokenizer/parser DAX; `translate_power_column`, `normalize_power_formula`; `ParseError` |
+| `pq_m_translator.py` | Passos M (`Table.SelectRows`, `TransformColumnTypes`, `RemoveColumns`, `SelectColumns`) → SQL DuckDB com CTEs; `translate_m_to_sql`, `m_source_table` |
 
 ---
 
@@ -112,7 +114,7 @@ Funções-chave em `data_store.py`: `base_name_from`, `version_from_stem`, `vers
 | # | Aba | Função |
 |---|-----|--------|
 | 1 | Explorar | Schema, preview paginado, overview de valores (classificatório ou numérico) |
-| 2 | SQL | Editor DuckDB com autocomplete (tabelas, colunas, keywords, funções); paginação server-side para SELECT/WITH |
+| 2 | SQL | Editor DuckDB com autocomplete; tradutor Power Query (M); paginação server-side para SELECT/WITH |
 | 3 | Colunas | Coluna calculada (DuckDB ou DAX), renomear, remover, TRY_CAST |
 | 4 | Exportar | Download ou salvar em `data/`; nova versão ou sobrescrever; timeline |
 
@@ -140,6 +142,16 @@ Radio **Classificatório** / **Numérico** (escolha manual):
 | **Numérico** | Coluna + agregação (MIN, MAX, SUM, AVG) | Um único valor formatado pt-BR (`.` milhar, `,` decimal) |
 
 VARCHAR no modo numérico usa `TRY_CAST(TRIM(col) AS DOUBLE)`. Helper: `format_number_pt`.
+
+---
+
+## Tradutor M (`pq_m_translator.py`)
+
+- Entrada: passos M encadeados (`#"Nome" = Table....,`).
+- Suportado: `Table.SelectRows`, `Table.TransformColumnTypes`, `Table.RemoveColumns`, `Table.SelectColumns`.
+- Parâmetros M: definidos no script (`Nome = #date(...)`) ou inferidos em predicados `each`; CTE `params` genérica.
+- `table_map` renomeia tabela de origem M para view DuckDB carregada.
+- API: `translate_m_to_sql`, `m_source_table`, `m_parameter_names`, `m_parameter_defaults`, `parse_m_script`; erros: `ParseError`.
 
 ---
 
@@ -200,6 +212,18 @@ streamlit-code-editor>=0.1.22
 ---
 
 ## Changelog
+
+### 2026-06-17 — v1.5.1 (parâmetros M genéricos)
+
+- Tradutor M: parâmetros detectados automaticamente (definições `#date` / literais ou uso em `each`); UI dinâmica; removidos defaults fixos RangeStart/RangeEnd.
+- API: `m_parameter_names`, `m_parameter_defaults`, `parse_m_script`.
+- Arquivos: `pq_m_translator.py`, `app.py`, `LIVING_SPEC.md`.
+
+### 2026-06-17 — v1.5.0 (tradutor Power Query M)
+
+- Novo `pq_m_translator.py`: converte passos M comuns em SQL DuckDB (CTEs, params de data, filtros, casts, colunas).
+- Aba SQL: expander «Tradutor Power Query (M)» com conversão e «Usar no editor».
+- Arquivos: `pq_m_translator.py`, `app.py`, `LIVING_SPEC.md`.
 
 ### 2026-06-17 — v1.4.3 (Ctrl+Enter executar SQL)
 

@@ -26,6 +26,13 @@ from data_store import (
     versioned_stem,
 )
 from pq_dax_translator import ParseError, normalize_power_formula, translate_power_column
+from pq_m_translator import (
+    ParseError as MParseError,
+    m_parameter_defaults,
+    m_parameter_names,
+    m_source_table,
+    translate_m_to_sql,
+)
 
 # ---------------------------------------------------------------------------
 # Config
@@ -726,6 +733,64 @@ with tabs[1]:
 
     if sql_editor_run_requested(editor_response, run_btn):
         execute_sql_input(sql_input)
+
+    with st.expander("Tradutor Power Query (M)"):
+        m_code = st.text_area(
+            "Passos M (Table.SelectRows, TransformColumnTypes, …)",
+            height=160,
+            key="m_import_code",
+            placeholder=(
+                "RangeStart = #date(2025, 1, 1),\n"
+                "RangeEnd = #date(2026, 1, 1),\n"
+                '#"Filtrado" = Table.SelectRows(MinhaTabela, each [DATA] >= RangeStart),'
+            ),
+        )
+        m_src = m_source_table(m_code) if m_code.strip() else None
+        if m_src:
+            st.caption(f"Tabela de origem detectada no M: `{m_src}`")
+        duck_idx = loaded.index(m_src) if m_src in loaded else 0
+        m_duck_table = st.selectbox(
+            "Mapear tabela M → view DuckDB",
+            loaded,
+            index=duck_idx,
+            key="m_duck_table",
+        )
+        m_param_values: dict[str, str] = {}
+        if m_code.strip():
+            try:
+                m_params = m_parameter_names(m_code)
+                m_defaults = m_parameter_defaults(m_code)
+            except MParseError:
+                m_params = []
+                m_defaults = {}
+            if m_params:
+                st.markdown("**Parâmetros M** (literal SQL DuckDB)")
+                for pname in m_params:
+                    default_sql = m_defaults.get(pname, "")
+                    m_param_values[pname] = st.text_input(
+                        pname,
+                        value=default_sql,
+                        placeholder="NULL",
+                        key=f"m_param_{pname}",
+                        help="Ex.: DATE '2025-01-01', 'texto', 42",
+                    ).strip() or "NULL"
+        if st.button("Converter para SQL", key="btn_m_translate"):
+            try:
+                table_map = {m_src: m_duck_table} if m_src else {}
+                st.session_state.m_translated_sql = translate_m_to_sql(
+                    m_code,
+                    table_map=table_map,
+                    param_values=m_param_values or None,
+                )
+            except MParseError as e:
+                st.warning(f"M inválido ou não suportado: {e}")
+            except Exception as e:
+                st.warning(f"Não foi possível traduzir: {e}")
+        if st.session_state.get("m_translated_sql"):
+            st.code(st.session_state.m_translated_sql, language="sql")
+            if st.button("Usar no editor", key="btn_m_apply_sql"):
+                st.session_state.sql_editor = {"text": st.session_state.m_translated_sql}
+                st.rerun()
 
     with st.expander("Referência rápida — tabelas e exemplos"):
         st.markdown(f"**Tabela ativa:** `{active}`")
