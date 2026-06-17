@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import io
 from pathlib import Path
+from typing import NamedTuple
 
 import duckdb
 import pandas as pd
@@ -95,11 +96,6 @@ def get_schema(table: str) -> pd.DataFrame:
 
 
 @st.cache_data(ttl=300)
-def get_summarize(table: str) -> pd.DataFrame:
-    return con.execute(f'SUMMARIZE "{table}"').df()
-
-
-@st.cache_data(ttl=300)
 def count_rows(table: str) -> int:
     return con.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0]
 
@@ -126,13 +122,6 @@ def get_distinct_values(table: str, col: str, limit: int = 500) -> list:
     return [r[0] for r in rows]
 
 
-@st.cache_data(ttl=300)
-def get_summarize_for(table: str) -> pd.DataFrame:
-    derived = get_derived_sql(table)
-    target = f"({derived})" if derived else f'"{table}"'
-    return con.execute(f"SUMMARIZE {target}").df()
-
-
 def count_work_rows(table: str) -> int:
     return con.execute(f"SELECT COUNT(*) FROM {work_from(table)}").fetchone()[0]
 
@@ -141,38 +130,76 @@ def run_query(sql: str) -> pd.DataFrame:
     return con.execute(sql).df()
 
 
-def paginate(df: pd.DataFrame, key: str, page_size: int = 500) -> pd.DataFrame:
+class PageInfo(NamedTuple):
+    page: int
+    pages: int
+    total: int
+    page_size: int
+
+
+def _pagination_page(key: str, pages: int) -> int:
+    state_key = f"pg_{key}"
+    if state_key not in st.session_state:
+        st.session_state[state_key] = 1
+    page = int(st.session_state[state_key])
+    page = max(1, min(page, pages))
+    st.session_state[state_key] = page
+    return page
+
+
+def render_pagination_bar(key: str, info: PageInfo) -> None:
+    if info.pages <= 1:
+        if info.total > 0:
+            with st.container(horizontal=True, horizontal_alignment="center"):
+                st.caption(f"{info.total:,} linha(s)")
+        return
+
+    pk = f"pg_{key}"
+    start = (info.page - 1) * info.page_size + 1
+    end = min(info.page * info.page_size, info.total)
+
+    with st.container(
+        horizontal=True,
+        horizontal_alignment="center",
+        vertical_alignment="center",
+        gap="small",
+    ):
+        if st.button("◀", key=f"{pk}_prev", disabled=info.page <= 1):
+            st.session_state[pk] = info.page - 1
+            st.rerun()
+        st.markdown(
+            f"<span style='font-size:0.875rem;white-space:nowrap'>{start:,}–{end:,} de {info.total:,} · "
+            f"<strong>{info.page}/{info.pages}</strong></span>",
+            unsafe_allow_html=True,
+        )
+        if st.button("▶", key=f"{pk}_next", disabled=info.page >= info.pages):
+            st.session_state[pk] = info.page + 1
+            st.rerun()
+
+
+def show_paginated_dataframe(df: pd.DataFrame, info: PageInfo, key: str) -> None:
+    st.dataframe(df, use_container_width=True, hide_index=True)
+    render_pagination_bar(key, info)
+
+
+def paginate(df: pd.DataFrame, key: str, page_size: int = 500) -> tuple[pd.DataFrame, PageInfo]:
     total = len(df)
     pages = max(1, (total + page_size - 1) // page_size)
-    if pages == 1:
-        return df
-    page = st.number_input(
-        f"Página (de {pages}, {total:,} linhas)",
-        min_value=1,
-        max_value=pages,
-        value=1,
-        step=1,
-        key=key,
-    )
-    return df.iloc[(page - 1) * page_size : page * page_size]
+    page = _pagination_page(key, pages)
+    offset = (page - 1) * page_size
+    info = PageInfo(page, pages, total, page_size)
+    return df.iloc[offset : offset + page_size], info
 
 
-def paginate_sql(sql: str, key: str, page_size: int = 500) -> tuple[pd.DataFrame, int]:
+def paginate_sql(sql: str, key: str, page_size: int = 500) -> tuple[pd.DataFrame, PageInfo]:
     """Paginação diretamente no DuckDB — não carrega tudo na RAM."""
     sql = strip_sql(sql)
     total = con.execute(f"SELECT COUNT(*) FROM ({sql}) __q__").fetchone()[0]
     pages = max(1, (total + page_size - 1) // page_size)
-    page = st.number_input(
-        f"Página (de {pages:,}, {total:,} linhas totais)",
-        min_value=1,
-        max_value=pages,
-        value=1,
-        step=1,
-        key=key,
-    )
+    page = _pagination_page(key, pages)
     offset = (page - 1) * page_size
     df = con.execute(f"SELECT * FROM ({sql}) __q__ LIMIT {page_size} OFFSET {offset}").df()
-    return df, total
+    return df, PageInfo(page, pages, total, page_size)
 
 
 def df_to_csv_bytes(df: pd.DataFrame) -> bytes:
@@ -284,7 +311,6 @@ def set_derived_sql(table: str, sql: str | None) -> None:
     else:
         st.session_state.derived_by_table.pop(table, None)
     get_value_overview.clear()
-    get_summarize_for.clear()
     st.session_state.pop("sql_editor_ctx", None)
 
 
@@ -325,8 +351,6 @@ with st.sidebar:
                     st.session_state.loaded_tables.append(df_path.stem)
                 set_derived_sql(df_path.stem, None)
             get_schema.clear()
-            get_summarize.clear()
-            get_summarize_for.clear()
             count_rows.clear()
             get_value_overview.clear()
             st.success(f"{len(selected)} tabela(s) carregada(s).")
@@ -393,8 +417,8 @@ with tabs[0]:
     if has_derived:
         st.caption("Exibindo tabela com colunas calculadas da aba Colunas.")
 
-    subtab_schema, subtab_stats, subtab_overview, subtab_preview = st.tabs(
-        ["Schema", "Estatísticas", "Overview de valores", "Preview"]
+    subtab_schema, subtab_preview, subtab_overview = st.tabs(
+        ["Schema", "Preview", "Overview de valores"]
     )
 
     with subtab_schema:
@@ -403,11 +427,16 @@ with tabs[0]:
             with st.expander("Schema original do arquivo"):
                 st.dataframe(schema_df, use_container_width=True, hide_index=True)
 
-    with subtab_stats:
-        st.caption("Estatísticas calculadas pelo DuckDB (`SUMMARIZE`). Pode demorar alguns segundos na primeira vez.")
-        if st.button("Calcular estatísticas", key="btn_summarize"):
-            with st.spinner("Calculando..."):
-                st.dataframe(get_summarize_for(active), use_container_width=True, hide_index=True)
+    with subtab_preview:
+        preview_cols = st.multiselect(
+            "Colunas a exibir (vazio = todas)",
+            col_names,
+            key="preview_cols",
+        )
+        cols_expr = ", ".join(f'"{c}"' for c in preview_cols) if preview_cols else "*"
+        preview_sql = f"SELECT {cols_expr} FROM {work_from_clause}"
+        df_preview, preview_info = paginate_sql(preview_sql, key="preview_page")
+        show_paginated_dataframe(df_preview, preview_info, "preview_page")
 
     with subtab_overview:
         overview_col = st.selectbox("Coluna", col_names, key="overview_col")
@@ -425,24 +454,12 @@ with tabs[0]:
                     st.success(
                         f"{distinct_count:,} valor(es) distinto(s) · {total_rows:,} linhas contabilizadas"
                     )
-                    st.dataframe(
-                        paginate(df_overview, key="overview_page", page_size=100),
-                        use_container_width=True,
-                        hide_index=True,
+                    df_overview_page, overview_info = paginate(
+                        df_overview, key="overview_page", page_size=100
                     )
+                    show_paginated_dataframe(df_overview_page, overview_info, "overview_page")
             except Exception as e:
                 st.error(f"Erro ao calcular overview: {e}")
-
-    with subtab_preview:
-        preview_cols = st.multiselect(
-            "Colunas a exibir (vazio = todas)",
-            col_names,
-            key="preview_cols",
-        )
-        cols_expr = ", ".join(f'"{c}"' for c in preview_cols) if preview_cols else "*"
-        preview_sql = f"SELECT {cols_expr} FROM {work_from_clause}"
-        df_preview, total_preview = paginate_sql(preview_sql, key="preview_page")
-        st.dataframe(df_preview, use_container_width=True, hide_index=True)
 
 
 # ===========================================================================
@@ -499,10 +516,10 @@ GROUP BY 1 ORDER BY 2 DESC;
                 query = strip_sql(sql_input)
                 stripped = query.upper()
                 if stripped.startswith("SELECT") or stripped.startswith("WITH"):
-                    df_sql, total_sql = paginate_sql(query, key="sql_page")
+                    df_sql, sql_info = paginate_sql(query, key="sql_page")
                     st.session_state.last_result_sql = query
-                    st.success(f"{total_sql:,} linhas no resultado.")
-                    st.dataframe(df_sql, use_container_width=True, hide_index=True)
+                    st.success(f"{sql_info.total:,} linhas no resultado.")
+                    show_paginated_dataframe(df_sql, sql_info, "sql_page")
                 else:
                     con.execute(query)
                     st.success("Comando executado.")
@@ -610,10 +627,10 @@ with tabs[2]:
         if st.button("Aplicar filtros", type="primary", key="btn_apply_filters"):
             try:
                 with st.spinner("Filtrando..."):
-                    df_filt, total_filt = paginate_sql(filter_sql, key="filter_page")
+                    df_filt, filt_info = paginate_sql(filter_sql, key="filter_page")
                     st.session_state.last_result_sql = filter_sql
-                    st.success(f"{total_filt:,} linhas após filtros.")
-                    st.dataframe(df_filt, use_container_width=True, hide_index=True)
+                    st.success(f"{filt_info.total:,} linhas após filtros.")
+                    show_paginated_dataframe(df_filt, filt_info, "filter_page")
             except Exception as e:
                 st.error(f"Erro: {e}")
 
@@ -672,10 +689,10 @@ with tabs[3]:
 
             try:
                 with st.spinner("Agrupando..."):
-                    df_group, total_group = paginate_sql(group_sql, key="group_page")
+                    df_group, group_info = paginate_sql(group_sql, key="group_page")
                     st.session_state.last_result_sql = group_sql
-                    st.success(f"{total_group:,} grupos.")
-                    st.dataframe(df_group, use_container_width=True, hide_index=True)
+                    st.success(f"{group_info.total:,} grupos.")
+                    show_paginated_dataframe(df_group, group_info, "group_page")
             except Exception as e:
                 st.error(f"Erro: {e}")
 
@@ -827,10 +844,10 @@ Aging_Atual = IF('fValorNotas'[Dias em Atraso]>360,"9_Acima 361",
         c1, c2 = st.columns(2)
         if c1.button("Pré-visualizar resultado", key="btn_preview_derived"):
             try:
-                df_der, total_der = paginate_sql(current_sql, key="derived_page")
+                df_der, der_info = paginate_sql(current_sql, key="derived_page")
                 st.session_state.last_result_sql = current_sql
-                st.success(f"{total_der:,} linhas.")
-                st.dataframe(df_der, use_container_width=True, hide_index=True)
+                st.success(f"{der_info.total:,} linhas.")
+                show_paginated_dataframe(df_der, der_info, "derived_page")
             except Exception as e:
                 st.error(f"Erro: {e}")
 

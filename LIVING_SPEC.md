@@ -1,7 +1,7 @@
 # Parquet Query — Especificação Viva
 
 > **Última atualização:** 2026-06-16  
-> **Versão do spec:** 1.3.0  
+> **Versão do spec:** 1.3.5  
 > **Mantenedor:** IA + desenvolvedor (atualização contínua a cada prompt relevante)
 
 ---
@@ -71,7 +71,7 @@ flowchart LR
     end
     subgraph Engine [DuckDB]
         Views[Views por arquivo]
-        SQL[Queries / SUMMARIZE]
+        SQL[Queries DuckDB]
     end
     subgraph Storage [data/]
         Parquet[*.parquet / csv / xlsx]
@@ -111,7 +111,7 @@ Funções-chave em `data_store.py`: `base_name_from`, `version_from_stem`, `vers
 
 | # | Aba | Função |
 |---|-----|--------|
-| 1 | Explorar | Schema, SUMMARIZE, overview de valores (frequências), preview paginado |
+| 1 | Explorar | Schema, preview paginado, overview de valores (frequências) |
 | 2 | SQL | Editor DuckDB; paginação server-side para SELECT/WITH |
 | 3 | Filtros | Filtros por tipo (numérico/data/texto); cláusulas AND; preview |
 | 4 | Agrupar | GROUP BY + agregações (SUM, AVG, COUNT, COUNT DISTINCT, MIN, MAX, FIRST, LAST) |
@@ -128,7 +128,7 @@ Funções-chave em `data_store.py`: `base_name_from`, `version_from_stem`, `vers
 | `last_result_sql` | Último SQL de query/filtro/agrupamento |
 | `active_table` | Via `selectbox` na sidebar |
 
-Caches Streamlit: `get_con` (`@st.cache_resource`), schema/summarize/overview (`@st.cache_data`, ttl=300). `set_derived_sql` limpa caches de overview/summarize.
+Caches Streamlit: `get_con` (`@st.cache_resource`), schema/overview (`@st.cache_data`, ttl=300). `set_derived_sql` limpa cache de overview.
 
 ---
 
@@ -148,6 +148,7 @@ Caches Streamlit: `get_con` (`@st.cache_resource`), schema/summarize/overview (`
 - Paths via `pathlib.Path`; SQL com identificadores entre aspas duplas `"coluna"`.
 - Subqueries derivadas: `work_from()` → `"coluna"` ou `({derived}) __work__`; validação interna usa `__validate__`.
 - Paginação pesada: `paginate_sql` (COUNT + LIMIT/OFFSET no DuckDB), não `paginate` em DataFrame grande.
+- UI de paginação: `show_paginated_dataframe` + `render_pagination_bar` — `st.container(horizontal=True)` com botões ◀/▶ colados ao texto, centralizado abaixo da tabela; estado em `pg_{key}`.
 - Limite XLSX: `LIMITE_XLSX = 1_048_576` (limite do Excel).
 - UI em português; mensagens de erro amigáveis via `st.error` / `st.warning`.
 - **Escopo mínimo:** alterações focadas; não refatorar sem pedido; seguir estilo existente.
@@ -187,6 +188,33 @@ streamlit>=1.35
 ---
 
 ## Changelog
+
+### 2026-06-16 — v1.3.5 (paginação inline)
+
+- Barra de paginação usa `st.container(horizontal=True)` — botões adjacentes ao texto, sem colunas extras.
+- Arquivos: `app.py`, `LIVING_SPEC.md`.
+
+### 2026-06-16 — v1.3.4 (paginação centralizada)
+
+- Barra de paginação compacta (`gap="small"`, botões sem largura total) e centralizada horizontalmente.
+- Arquivos: `app.py`, `LIVING_SPEC.md`.
+
+### 2026-06-16 — v1.3.3 (paginação compacta)
+
+- Substituído `st.number_input` por barra compacta com botões ◀/▶ abaixo das tabelas paginadas.
+- Novos helpers: `PageInfo`, `render_pagination_bar`, `show_paginated_dataframe`.
+- Arquivos: `app.py`, `LIVING_SPEC.md`.
+
+### 2026-06-16 — v1.3.2 (remoção SUMMARIZE)
+
+- Removidas funções mortas `get_summarize` e `get_summarize_for` e limpezas de cache associadas.
+- Arquivos: `app.py`, `LIVING_SPEC.md`.
+
+### 2026-06-16 — v1.3.1 (Explorar: subabas)
+
+- Removida subaba **Estatísticas** (`SUMMARIZE`) da aba Explorar.
+- Ordem das subabas: Schema → Preview → Overview de valores.
+- Arquivos: `app.py`, `LIVING_SPEC.md`.
 
 ### 2026-06-16 — v1.3.0 (SQL simplificado + work_from)
 
