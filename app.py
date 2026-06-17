@@ -100,18 +100,84 @@ def count_rows(table: str) -> int:
     return con.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0]
 
 
-def build_value_overview_sql(table: str, col: str) -> str:
+OVERVIEW_AGGS = ["MIN", "MAX", "SUM", "AVG"]
+
+
+def column_type_category(dtype: str) -> str:
+    d = dtype.upper()
+    if any(t in d for t in ("INT", "FLOAT", "DOUBLE", "DECIMAL", "NUMERIC", "BIGINT", "HUGEINT", "REAL")):
+        return "numeric"
+    if any(t in d for t in ("DATE", "TIMESTAMP", "TIME")):
+        return "date"
+    return "text"
+
+
+def _numeric_overview_expr(col: str, dtype: str) -> str:
+    if column_type_category(dtype) == "text":
+        return f'TRY_CAST(TRIM("{col}") AS DOUBLE)'
+    return f'"{col}"'
+
+
+def _format_int_pt(n: int) -> str:
+    s = str(abs(n))
+    parts: list[str] = []
+    while s:
+        parts.append(s[-3:])
+        s = s[:-3]
+    formatted = ".".join(reversed(parts))
+    return f"-{formatted}" if n < 0 else formatted
+
+
+def format_number_pt(value, *, max_decimals: int = 6) -> str:
+    if value is None:
+        return "—"
+    try:
+        if pd.isna(value):
+            return "—"
+    except TypeError:
+        pass
+    if hasattr(value, "strftime"):
+        if hasattr(value, "hour") and (value.hour or value.minute or value.second):
+            return value.strftime("%d/%m/%Y %H:%M:%S")
+        return value.strftime("%d/%m/%Y")
+
+    num = float(value)
+    if num == int(num) and abs(num) < 1e18:
+        return _format_int_pt(int(num))
+
+    sign = "-" if num < 0 else ""
+    num = abs(num)
+    raw = f"{num:.{max_decimals}f}".rstrip("0").rstrip(".")
+    int_s, _, dec_s = raw.partition(".")
+    int_formatted = _format_int_pt(int(int_s or "0"))
+    if dec_s:
+        return f"{sign}{int_formatted},{dec_s}"
+    return f"{sign}{int_formatted}"
+
+
+def build_classificatory_overview_sql(table: str, col: str) -> str:
+    wf = work_from(table)
     return (
         f'SELECT "{col}", COUNT(*) AS "quantidade"\n'
-        f"FROM {work_from(table)}\n"
+        f"FROM {wf}\n"
         f'GROUP BY "{col}"\n'
         f'ORDER BY "quantidade" DESC'
     )
 
 
+def build_numeric_overview_sql(table: str, col: str, agg: str, dtype: str) -> str:
+    expr = _numeric_overview_expr(col, dtype)
+    return f'SELECT {agg}({expr}) AS "resultado"\nFROM {work_from(table)}'
+
+
 @st.cache_data(ttl=300)
-def get_value_overview(table: str, col: str) -> pd.DataFrame:
-    return con.execute(build_value_overview_sql(table, col)).df()
+def get_classificatory_overview(table: str, col: str) -> pd.DataFrame:
+    return con.execute(build_classificatory_overview_sql(table, col)).df()
+
+
+@st.cache_data(ttl=300)
+def get_numeric_overview(table: str, col: str, agg: str, dtype: str):
+    return con.execute(build_numeric_overview_sql(table, col, agg, dtype)).fetchone()[0]
 
 
 def get_distinct_values(table: str, col: str, limit: int = 500) -> list:
@@ -310,7 +376,8 @@ def set_derived_sql(table: str, sql: str | None) -> None:
         st.session_state.derived_by_table[table] = sql
     else:
         st.session_state.derived_by_table.pop(table, None)
-    get_value_overview.clear()
+    get_classificatory_overview.clear()
+    get_numeric_overview.clear()
     st.session_state.pop("sql_editor_ctx", None)
 
 
@@ -352,7 +419,8 @@ with st.sidebar:
                 set_derived_sql(df_path.stem, None)
             get_schema.clear()
             count_rows.clear()
-            get_value_overview.clear()
+            get_classificatory_overview.clear()
+            get_numeric_overview.clear()
             st.success(f"{len(selected)} tabela(s) carregada(s).")
 
     st.markdown("---")
@@ -439,25 +507,49 @@ with tabs[0]:
         show_paginated_dataframe(df_preview, preview_info, "preview_page")
 
     with subtab_overview:
+        overview_mode = st.radio(
+            "Tipo de overview",
+            ["Classificatório", "Numérico"],
+            horizontal=True,
+            key="overview_mode",
+        )
         overview_col = st.selectbox("Coluna", col_names, key="overview_col")
-        overview_sql = build_value_overview_sql(active, overview_col)
+        overview_dtype = col_types.get(overview_col, "VARCHAR")
+
+        if overview_mode == "Numérico":
+            overview_agg = st.selectbox("Agregação", OVERVIEW_AGGS, key="overview_agg")
+            overview_sql = build_numeric_overview_sql(active, overview_col, overview_agg, overview_dtype)
+        else:
+            overview_agg = None
+            overview_sql = build_classificatory_overview_sql(active, overview_col)
 
         with st.expander("SQL gerado"):
             st.code(overview_sql, language="sql")
 
         if st.button("Calcular overview", type="primary", key="btn_value_overview"):
             try:
-                with st.spinner("Calculando frequências..."):
-                    df_overview = get_value_overview(active, overview_col)
-                    distinct_count = len(df_overview)
-                    total_rows = int(df_overview["quantidade"].sum()) if not df_overview.empty else 0
-                    st.success(
-                        f"{distinct_count:,} valor(es) distinto(s) · {total_rows:,} linhas contabilizadas"
-                    )
-                    df_overview_page, overview_info = paginate(
-                        df_overview, key="overview_page", page_size=100
-                    )
-                    show_paginated_dataframe(df_overview_page, overview_info, "overview_page")
+                if overview_mode == "Classificatório":
+                    with st.spinner("Calculando frequências..."):
+                        df_overview = get_classificatory_overview(active, overview_col)
+                        distinct_count = len(df_overview)
+                        total_rows = int(df_overview["quantidade"].sum()) if not df_overview.empty else 0
+                        st.success(
+                            f"{distinct_count:,} valor(es) distinto(s) · {total_rows:,} linhas contabilizadas"
+                        )
+                        df_overview_page, overview_info = paginate(
+                            df_overview, key="overview_page", page_size=100
+                        )
+                        show_paginated_dataframe(df_overview_page, overview_info, "overview_page")
+                else:
+                    with st.spinner("Calculando agregação..."):
+                        result = get_numeric_overview(active, overview_col, overview_agg, overview_dtype)
+                        formatted = format_number_pt(result)
+                        st.markdown(
+                            f"<p style='font-size:2.25rem;font-weight:600;margin:0.5rem 0'>"
+                            f"{formatted}</p>",
+                            unsafe_allow_html=True,
+                        )
+                        st.caption(f"{overview_agg} · `{overview_col}`")
             except Exception as e:
                 st.error(f"Erro ao calcular overview: {e}")
 
@@ -533,19 +625,11 @@ GROUP BY 1 ORDER BY 2 DESC;
 with tabs[2]:
     st.header("Filtros")
 
-    def _type_category(dtype: str) -> str:
-        d = dtype.upper()
-        if any(t in d for t in ("INT", "FLOAT", "DOUBLE", "DECIMAL", "NUMERIC", "BIGINT", "HUGEINT", "REAL")):
-            return "numeric"
-        if any(t in d for t in ("DATE", "TIMESTAMP", "TIME")):
-            return "date"
-        return "text"
-
     # --- Adicionar filtro ---
     with st.expander("Adicionar filtro", expanded=True):
         f_col = st.selectbox("Coluna", col_names, key="f_col")
         f_dtype = col_types.get(f_col, "VARCHAR")
-        f_cat = _type_category(f_dtype)
+        f_cat = column_type_category(f_dtype)
 
         if f_cat == "numeric":
             try:

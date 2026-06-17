@@ -1,7 +1,7 @@
 # Parquet Query — Especificação Viva
 
 > **Última atualização:** 2026-06-16  
-> **Versão do spec:** 1.3.5  
+> **Versão do spec:** 1.3.7  
 > **Mantenedor:** IA + desenvolvedor (atualização contínua a cada prompt relevante)
 
 ---
@@ -111,7 +111,7 @@ Funções-chave em `data_store.py`: `base_name_from`, `version_from_stem`, `vers
 
 | # | Aba | Função |
 |---|-----|--------|
-| 1 | Explorar | Schema, preview paginado, overview de valores (frequências) |
+| 1 | Explorar | Schema, preview paginado, overview de valores (classificatório ou estatísticas) |
 | 2 | SQL | Editor DuckDB; paginação server-side para SELECT/WITH |
 | 3 | Filtros | Filtros por tipo (numérico/data/texto); cláusulas AND; preview |
 | 4 | Agrupar | GROUP BY + agregações (SUM, AVG, COUNT, COUNT DISTINCT, MIN, MAX, FIRST, LAST) |
@@ -128,7 +128,18 @@ Funções-chave em `data_store.py`: `base_name_from`, `version_from_stem`, `vers
 | `last_result_sql` | Último SQL de query/filtro/agrupamento |
 | `active_table` | Via `selectbox` na sidebar |
 
-Caches Streamlit: `get_con` (`@st.cache_resource`), schema/overview (`@st.cache_data`, ttl=300). `set_derived_sql` limpa cache de overview.
+Caches Streamlit: `get_con` (`@st.cache_resource`), schema/overview (`@st.cache_data`, ttl=300). `set_derived_sql` limpa cache de `get_classificatory_overview` e `get_numeric_overview`.
+
+### Overview de valores (Explorar)
+
+Radio **Classificatório** / **Numérico** (escolha manual):
+
+| Modo | Controles | Resultado |
+|------|-----------|-----------|
+| **Classificatório** | Coluna | Frequências por valor (`GROUP BY`), tabela paginada |
+| **Numérico** | Coluna + agregação (MIN, MAX, SUM, AVG) | Um único valor formatado pt-BR (`.` milhar, `,` decimal) |
+
+VARCHAR no modo numérico usa `TRY_CAST(TRIM(col) AS DOUBLE)`. Helper: `format_number_pt`.
 
 ---
 
@@ -188,6 +199,19 @@ streamlit>=1.35
 ---
 
 ## Changelog
+
+### 2026-06-16 — v1.3.7 (overview manual classificatório/numérico)
+
+- Removida detecção automática de tipo no overview; radio alterna Classificatório vs Numérico.
+- Modo numérico: selectbox de agregação (MIN/MAX/SUM/AVG) e um valor exibido com `format_number_pt` (`.` milhar, `,` decimal).
+- Arquivos: `app.py`, `LIVING_SPEC.md`.
+
+### 2026-06-16 — v1.3.6 (overview classificatório vs numérico)
+
+- Overview de valores na aba Explorar detecta automaticamente colunas classificatórias vs numéricas/datas.
+- VARCHAR com apenas valores numéricos (ex.: IDs) é tratado como numérico via `TRY_CAST`.
+- Novos helpers: `column_type_category`, `resolve_overview_kind`, `_overview_value_expr`.
+- Arquivos: `app.py`, `LIVING_SPEC.md`.
 
 ### 2026-06-16 — v1.3.5 (paginação inline)
 
