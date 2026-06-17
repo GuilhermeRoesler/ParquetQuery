@@ -1,7 +1,7 @@
 # Parquet Query — Especificação Viva
 
 > **Última atualização:** 2026-06-16  
-> **Versão do spec:** 1.3.7  
+> **Versão do spec:** 1.4.0  
 > **Mantenedor:** IA + desenvolvedor (atualização contínua a cada prompt relevante)
 
 ---
@@ -22,7 +22,7 @@ Campos a revisar em cada atualização: `Última atualização`, módulos, fluxo
 
 ## Visão geral
 
-**Parquet Query** é uma aplicação **Streamlit** para explorar arquivos Parquet (e derivados) com **DuckDB**, sem carregar datasets inteiros na RAM quando possível. Suporta SQL ad-hoc, filtros visuais, agrupamentos, colunas calculadas (DuckDB ou DAX do Power BI) e exportação versionada para `data/`.
+**Parquet Query** é uma aplicação **Streamlit** para explorar arquivos Parquet (e derivados) com **DuckDB**, sem carregar datasets inteiros na RAM quando possível. Suporta SQL ad-hoc, colunas calculadas (DuckDB ou DAX do Power BI) e exportação versionada para `data/`.
 
 | Item | Valor |
 |------|-------|
@@ -55,7 +55,7 @@ Parquet Query/
 
 | Arquivo | Papel |
 |---------|-------|
-| `app.py` | Ponto de entrada; sidebar (carregar parquets/CSV); 6 abas; session state; helpers DuckDB/paginação/export |
+| `app.py` | Ponto de entrada; sidebar (carregar parquets/CSV); 4 abas; session state; helpers DuckDB/paginação/export |
 | `data_store.py` | Nomenclatura `{base}_v{N}`, timeline, `_manifest.json`, migração `input/`/`output/` → `data/` |
 | `pq_dax_translator.py` | Tokenizer/parser DAX; `translate_power_column`, `normalize_power_formula`; `ParseError` |
 
@@ -67,7 +67,7 @@ Parquet Query/
 flowchart LR
     subgraph UI [Streamlit app.py]
         Sidebar[Sidebar: carregar arquivos]
-        Tabs[6 abas]
+        Tabs[4 abas]
     end
     subgraph Engine [DuckDB]
         Views[Views por arquivo]
@@ -111,21 +111,18 @@ Funções-chave em `data_store.py`: `base_name_from`, `version_from_stem`, `vers
 
 | # | Aba | Função |
 |---|-----|--------|
-| 1 | Explorar | Schema, preview paginado, overview de valores (classificatório ou estatísticas) |
+| 1 | Explorar | Schema, preview paginado, overview de valores (classificatório ou numérico) |
 | 2 | SQL | Editor DuckDB; paginação server-side para SELECT/WITH |
-| 3 | Filtros | Filtros por tipo (numérico/data/texto); cláusulas AND; preview |
-| 4 | Agrupar | GROUP BY + agregações (SUM, AVG, COUNT, COUNT DISTINCT, MIN, MAX, FIRST, LAST) |
-| 5 | Colunas | Coluna calculada (DuckDB ou DAX), renomear, remover, TRY_CAST |
-| 6 | Exportar | Download ou salvar em `data/`; nova versão ou sobrescrever; timeline |
+| 3 | Colunas | Coluna calculada (DuckDB ou DAX), renomear, remover, TRY_CAST |
+| 4 | Exportar | Download ou salvar em `data/`; nova versão ou sobrescrever; timeline |
 
 ### Session state (`app.py`)
 
 | Chave | Uso |
 |-------|-----|
 | `loaded_tables` | Lista de stems carregados |
-| `filters` | `[{label, clause}, ...]` |
 | `derived_by_table` | `{table: sql_derivado}` |
-| `last_result_sql` | Último SQL de query/filtro/agrupamento |
+| `last_result_sql` | Último SQL executado na aba SQL |
 | `active_table` | Via `selectbox` na sidebar |
 
 Caches Streamlit: `get_con` (`@st.cache_resource`), schema/overview (`@st.cache_data`, ttl=300). `set_derived_sql` limpa cache de `get_classificatory_overview` e `get_numeric_overview`.
@@ -199,6 +196,13 @@ streamlit>=1.35
 ---
 
 ## Changelog
+
+### 2026-06-16 — v1.4.0 (remoção Filtros e Agrupar)
+
+- Removidas abas **Filtros** e **Agrupar**; app passa a ter 4 abas (Explorar, SQL, Colunas, Exportar).
+- Removidos `filters` do session state, `AGGS`, `get_distinct_values`.
+- Exportar: opção renomeada para «Último resultado (SQL)».
+- Arquivos: `app.py`, `LIVING_SPEC.md`.
 
 ### 2026-06-16 — v1.3.7 (overview manual classificatório/numérico)
 

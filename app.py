@@ -34,7 +34,6 @@ DATA_DIR = BASE / "data"
 DATA_DIR.mkdir(exist_ok=True)
 migrate_legacy_dirs(DATA_DIR, BASE)
 
-AGGS = ["SUM", "AVG", "COUNT", "COUNT DISTINCT", "MIN", "MAX", "FIRST", "LAST"]
 CAST_TYPES = ["VARCHAR", "INTEGER", "BIGINT", "DOUBLE", "BOOLEAN", "DATE", "TIMESTAMP"]
 LIMITE_XLSX = 1_048_576
 
@@ -180,14 +179,6 @@ def get_numeric_overview(table: str, col: str, agg: str, dtype: str):
     return con.execute(build_numeric_overview_sql(table, col, agg, dtype)).fetchone()[0]
 
 
-def get_distinct_values(table: str, col: str, limit: int = 500) -> list:
-    rows = con.execute(
-        f'SELECT DISTINCT "{col}" FROM {work_from(table)} '
-        f'WHERE "{col}" IS NOT NULL ORDER BY 1 LIMIT {limit}'
-    ).fetchall()
-    return [r[0] for r in rows]
-
-
 def count_work_rows(table: str) -> int:
     return con.execute(f"SELECT COUNT(*) FROM {work_from(table)}").fetchone()[0]
 
@@ -322,7 +313,6 @@ def save_to_data(
 def _init_state() -> None:
     defaults = {
         "loaded_tables": [],
-        "filters": [],
         "derived_by_table": {},
         "last_result_sql": None,
     }
@@ -474,7 +464,7 @@ if st.session_state.get("sql_editor_ctx") != sql_editor_ctx:
     st.session_state.sql_editor = default_preview_sql(active)
     st.session_state.sql_editor_ctx = sql_editor_ctx
 
-tabs = st.tabs(["Explorar", "SQL", "Filtros", "Agrupar", "Colunas", "Exportar"])
+tabs = st.tabs(["Explorar", "SQL", "Colunas", "Exportar"])
 
 
 # ===========================================================================
@@ -620,171 +610,9 @@ GROUP BY 1 ORDER BY 2 DESC;
 
 
 # ===========================================================================
-# ABA 3 — FILTROS
+# ABA 3 — COLUNAS
 # ===========================================================================
 with tabs[2]:
-    st.header("Filtros")
-
-    # --- Adicionar filtro ---
-    with st.expander("Adicionar filtro", expanded=True):
-        f_col = st.selectbox("Coluna", col_names, key="f_col")
-        f_dtype = col_types.get(f_col, "VARCHAR")
-        f_cat = column_type_category(f_dtype)
-
-        if f_cat == "numeric":
-            try:
-                mn, mx = con.execute(
-                    f'SELECT MIN("{f_col}"), MAX("{f_col}") FROM {work_from_clause}'
-                ).fetchone()
-                mn = float(mn or 0)
-                mx = float(mx or 0)
-            except Exception:
-                mn, mx = 0.0, 1.0
-            f_op = st.selectbox("Operador", ["between", "=", "!=", ">", ">=", "<", "<="], key="f_op_num")
-            if f_op == "between":
-                f_v1, f_v2 = st.slider("Intervalo", mn, mx, (mn, mx), key="f_slider")
-                clause = f'"{f_col}" BETWEEN {f_v1} AND {f_v2}'
-                label = f"{f_col} BETWEEN {f_v1} AND {f_v2}"
-            else:
-                f_val = st.number_input("Valor", value=mn, key="f_num_val")
-                clause = f'"{f_col}" {f_op} {f_val}'
-                label = f"{f_col} {f_op} {f_val}"
-
-        elif f_cat == "date":
-            try:
-                mn_d, mx_d = con.execute(
-                    f'SELECT MIN("{f_col}"::DATE), MAX("{f_col}"::DATE) FROM {work_from_clause}'
-                ).fetchone()
-            except Exception:
-                mn_d, mx_d = None, None
-            import datetime
-            d1 = st.date_input("De", value=mn_d or datetime.date(2000, 1, 1), key="f_date1")
-            d2 = st.date_input("Até", value=mx_d or datetime.date.today(), key="f_date2")
-            clause = f'"{f_col}"::DATE BETWEEN \'{d1}\' AND \'{d2}\''
-            label = f"{f_col} entre {d1} e {d2}"
-
-        else:  # text
-            f_text_op = st.selectbox("Operador", ["IN (seleção)", "LIKE", "NOT LIKE", "IS NULL", "IS NOT NULL"], key="f_text_op")
-            if f_text_op == "IN (seleção)":
-                opts = get_distinct_values(active, f_col)
-                chosen = st.multiselect("Valores", opts, key="f_vals")
-                if chosen:
-                    vals_str = ", ".join(f"'{v}'" for v in chosen)
-                    clause = f'"{f_col}" IN ({vals_str})'
-                    label = f"{f_col} IN ({', '.join(str(v) for v in chosen[:3])}{'...' if len(chosen) > 3 else ''})"
-                else:
-                    clause = None
-                    label = None
-            elif f_text_op in ("IS NULL", "IS NOT NULL"):
-                clause = f'"{f_col}" {f_text_op}'
-                label = f"{f_col} {f_text_op}"
-            else:
-                f_like_val = st.text_input("Padrão (use % como curinga)", key="f_like_val")
-                clause = f"\"{f_col}\" {f_text_op} '{f_like_val}'"
-                label = f"{f_col} {f_text_op} '{f_like_val}'"
-
-        if st.button("Adicionar filtro", key="btn_add_filter"):
-            if clause:
-                st.session_state.filters.append({"label": label, "clause": clause})
-                st.rerun()
-
-    # --- Filtros ativos ---
-    if st.session_state.filters:
-        st.subheader("Filtros ativos")
-        to_remove = []
-        for i, f in enumerate(st.session_state.filters):
-            c1, c2 = st.columns([8, 1])
-            c1.markdown(f"`{f['label']}`")
-            if c2.button("✕", key=f"rm_{i}"):
-                to_remove.append(i)
-        for i in reversed(to_remove):
-            st.session_state.filters.pop(i)
-        if to_remove:
-            st.rerun()
-
-        where_clause = " AND ".join(f['clause'] for f in st.session_state.filters)
-        filter_sql = f"SELECT * FROM {work_from_clause} WHERE {where_clause}"
-
-        with st.expander("SQL gerado"):
-            st.code(filter_sql, language="sql")
-
-        if st.button("Aplicar filtros", type="primary", key="btn_apply_filters"):
-            try:
-                with st.spinner("Filtrando..."):
-                    df_filt, filt_info = paginate_sql(filter_sql, key="filter_page")
-                    st.session_state.last_result_sql = filter_sql
-                    st.success(f"{filt_info.total:,} linhas após filtros.")
-                    show_paginated_dataframe(df_filt, filt_info, "filter_page")
-            except Exception as e:
-                st.error(f"Erro: {e}")
-
-        if st.button("Limpar todos os filtros", key="btn_clear_filters"):
-            st.session_state.filters = []
-            st.rerun()
-    else:
-        st.info("Nenhum filtro ativo. Adicione um acima.")
-
-
-# ===========================================================================
-# ABA 4 — AGRUPAR
-# ===========================================================================
-with tabs[3]:
-    st.header("Agrupar")
-
-    group_cols = st.multiselect("Colunas de agrupamento", col_names, key="group_cols")
-
-    st.markdown("**Agregações**")
-    agg_rows: list[dict] = []
-
-    num_aggs = st.number_input("Quantas agregações?", min_value=1, max_value=20, value=1, step=1, key="num_aggs")
-    for i in range(int(num_aggs)):
-        c1, c2, c3 = st.columns([3, 2, 3])
-        agg_col = c1.selectbox("Coluna", col_names, key=f"agg_col_{i}")
-        agg_fn = c2.selectbox("Função", AGGS, key=f"agg_fn_{i}")
-        agg_alias = c3.text_input("Alias", value=f"{agg_fn.lower().replace(' ', '_')}_{agg_col}", key=f"agg_alias_{i}")
-        agg_rows.append({"col": agg_col, "fn": agg_fn, "alias": agg_alias})
-
-    order_col = st.selectbox("Ordenar por", ["(sem ordenação)"] + [r["alias"] for r in agg_rows], key="group_order")
-    order_dir = st.radio("Direção", ["DESC", "ASC"], horizontal=True, key="group_dir")
-
-    if st.button("Executar agrupamento", type="primary", key="btn_group"):
-        if not group_cols:
-            st.warning("Selecione ao menos uma coluna de agrupamento.")
-        else:
-            agg_exprs = []
-            for r in agg_rows:
-                fn = r["fn"]
-                col = r["col"]
-                alias = r["alias"]
-                if fn == "COUNT DISTINCT":
-                    expr = f'COUNT(DISTINCT "{col}") AS "{alias}"'
-                else:
-                    expr = f'{fn}("{col}") AS "{alias}"'
-                agg_exprs.append(expr)
-
-            group_expr = ", ".join(f'"{c}"' for c in group_cols)
-            select_expr = group_expr + ", " + ", ".join(agg_exprs)
-            group_sql = f"SELECT {select_expr} FROM {work_from_clause} GROUP BY {group_expr}"
-            if order_col != "(sem ordenação)":
-                group_sql += f' ORDER BY "{order_col}" {order_dir}'
-
-            with st.expander("SQL gerado"):
-                st.code(group_sql, language="sql")
-
-            try:
-                with st.spinner("Agrupando..."):
-                    df_group, group_info = paginate_sql(group_sql, key="group_page")
-                    st.session_state.last_result_sql = group_sql
-                    st.success(f"{group_info.total:,} grupos.")
-                    show_paginated_dataframe(df_group, group_info, "group_page")
-            except Exception as e:
-                st.error(f"Erro: {e}")
-
-
-# ===========================================================================
-# ABA 5 — COLUNAS
-# ===========================================================================
-with tabs[4]:
     st.header("Transformar Colunas")
 
     base_table = active
@@ -943,9 +771,9 @@ Aging_Atual = IF('fValorNotas'[Dias em Atraso]>360,"9_Acima 361",
 
 
 # ===========================================================================
-# ABA 6 — EXPORTAR
+# ABA 4 — EXPORTAR
 # ===========================================================================
-with tabs[5]:
+with tabs[3]:
     st.header("Exportar")
     st.caption(f"Base de dados: `{current_base}` · destino padrão: `data/`")
 
@@ -953,7 +781,7 @@ with tabs[5]:
         "O que exportar?",
         [
             "Tabela com colunas calculadas",
-            "Último resultado (SQL/Filtros/Agrupamento)",
+            "Último resultado (SQL)",
             "Somente arquivo original",
         ],
         key="export_source",
@@ -961,11 +789,11 @@ with tabs[5]:
 
     if export_source == "Tabela com colunas calculadas":
         export_sql = work_sql
-    elif export_source == "Último resultado (SQL/Filtros/Agrupamento)":
+    elif export_source == "Último resultado (SQL)":
         if st.session_state.last_result_sql:
             export_sql = st.session_state.last_result_sql
         else:
-            st.warning("Nenhum resultado encontrado. Execute uma query, filtro ou agrupamento primeiro.")
+            st.warning("Nenhum resultado encontrado. Execute uma query na aba SQL primeiro.")
             st.stop()
     else:
         export_sql = f'SELECT * FROM "{active}"'
