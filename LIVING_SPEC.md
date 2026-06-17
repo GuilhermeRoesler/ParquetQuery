@@ -1,7 +1,7 @@
 # Parquet Query — Especificação Viva
 
-> **Última atualização:** 2026-06-16  
-> **Versão do spec:** 1.4.0  
+> **Última atualização:** 2026-06-17  
+> **Versão do spec:** 1.4.3  
 > **Mantenedor:** IA + desenvolvedor (atualização contínua a cada prompt relevante)
 
 ---
@@ -112,7 +112,7 @@ Funções-chave em `data_store.py`: `base_name_from`, `version_from_stem`, `vers
 | # | Aba | Função |
 |---|-----|--------|
 | 1 | Explorar | Schema, preview paginado, overview de valores (classificatório ou numérico) |
-| 2 | SQL | Editor DuckDB; paginação server-side para SELECT/WITH |
+| 2 | SQL | Editor DuckDB com autocomplete (tabelas, colunas, keywords, funções); paginação server-side para SELECT/WITH |
 | 3 | Colunas | Coluna calculada (DuckDB ou DAX), renomear, remover, TRY_CAST |
 | 4 | Exportar | Download ou salvar em `data/`; nova versão ou sobrescrever; timeline |
 
@@ -123,6 +123,9 @@ Funções-chave em `data_store.py`: `base_name_from`, `version_from_stem`, `vers
 | `loaded_tables` | Lista de stems carregados |
 | `derived_by_table` | `{table: sql_derivado}` |
 | `last_result_sql` | Último SQL executado na aba SQL |
+| `sql_editor` | Dict do componente `code_editor` (`text`, cursor, etc.) |
+| `sql_editor_ctx` | `{tabela}:raw` ou `:derived` — troca reseta o editor |
+| `sql_last_submit_id` | Último `id` de Ctrl+Enter processado (evita reexecução) |
 | `active_table` | Via `selectbox` na sidebar |
 
 Caches Streamlit: `get_con` (`@st.cache_resource`), schema/overview (`@st.cache_data`, ttl=300). `set_derived_sql` limpa cache de `get_classificatory_overview` e `get_numeric_overview`.
@@ -171,6 +174,7 @@ pyarrow>=14.0
 openpyxl>=3.1
 duckdb>=1.0
 streamlit>=1.35
+streamlit-code-editor>=0.1.22
 ```
 
 ---
@@ -196,6 +200,24 @@ streamlit>=1.35
 ---
 
 ## Changelog
+
+### 2026-06-17 — v1.4.3 (Ctrl+Enter executar SQL)
+
+- Aba SQL: **Ctrl+Enter** dispara execução via comando `submit` nativo do `code_editor`.
+- Helpers `execute_sql_input`, `sql_editor_run_requested`; deduplicação por `sql_last_submit_id`.
+- Arquivos: `app.py`, `LIVING_SPEC.md`.
+
+### 2026-06-17 — v1.4.2 (layout autocomplete SQL)
+
+- Corrigido popup de sugestões cortado: `overflow: visible`, padding inferior no iframe do `code_editor`, CSS nas abas Streamlit.
+- Editor SQL reposicionado acima da referência; altura 14–22 linhas; navegação por teclado documentada na caption.
+- Arquivos: `app.py`, `LIVING_SPEC.md`.
+
+### 2026-06-17 — v1.4.1 (autocomplete SQL nível A)
+
+- Aba SQL: `st.text_area` substituído por `streamlit-code-editor` com sugestões fixas (tabelas carregadas, colunas, keywords SQL, funções DuckDB comuns).
+- Novos helpers: `table_column_names`, `build_sql_completions`; constantes `SQL_KEYWORDS`, `DUCKDB_FUNCTIONS`.
+- Arquivos: `app.py`, `requirements.txt`, `LIVING_SPEC.md`.
 
 ### 2026-06-16 — v1.4.0 (remoção Filtros e Agrupar)
 

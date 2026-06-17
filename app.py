@@ -10,6 +10,7 @@ from typing import NamedTuple
 import duckdb
 import pandas as pd
 import streamlit as st
+from code_editor import code_editor
 
 from data_store import (
     base_name_from,
@@ -329,6 +330,39 @@ def strip_sql(sql: str) -> str:
     return sql.strip().rstrip(";")
 
 
+def execute_sql_input(sql_text: str) -> None:
+    """Executa query na aba SQL (SELECT/WITH paginado; demais comandos direto)."""
+    if not sql_text.strip():
+        return
+    try:
+        with st.spinner("Executando..."):
+            query = strip_sql(sql_text)
+            stripped = query.upper()
+            if stripped.startswith("SELECT") or stripped.startswith("WITH"):
+                df_sql, sql_info = paginate_sql(query, key="sql_page")
+                st.session_state.last_result_sql = query
+                st.success(f"{sql_info.total:,} linhas no resultado.")
+                show_paginated_dataframe(df_sql, sql_info, "sql_page")
+            else:
+                con.execute(query)
+                st.success("Comando executado.")
+    except Exception as e:
+        st.error(f"Erro SQL: {e}")
+
+
+def sql_editor_run_requested(editor_response: dict | None, run_btn: bool) -> bool:
+    """Botão Executar ou Ctrl+Enter (submit do code_editor, uma vez por id)."""
+    if run_btn:
+        return True
+    if not editor_response or editor_response.get("type") != "submit":
+        return False
+    submit_id = editor_response.get("id") or ""
+    if not submit_id or submit_id == st.session_state.get("sql_last_submit_id"):
+        return False
+    st.session_state.sql_last_submit_id = submit_id
+    return True
+
+
 def get_derived_sql(table: str) -> str | None:
     return st.session_state.derived_by_table.get(table)
 
@@ -347,6 +381,115 @@ def work_from(table: str) -> str:
 
 def default_preview_sql(table: str, *, limit: int = 100) -> str:
     return f"SELECT * FROM {work_from(table)} LIMIT {limit}"
+
+
+SQL_EDITOR_OPTIONS = {
+    "enableBasicAutocompletion": True,
+    "enableLiveAutocompletion": True,
+}
+
+SQL_EDITOR_PROPS = {
+    "style": {
+        "minHeight": "180px",
+        "borderRadius": "0 0 8px 8px",
+    },
+}
+
+SQL_EDITOR_COMPONENT_PROPS = {
+    "style": {"overflow": "visible"},
+    "css": """
+        & {
+            overflow: visible !important;
+            padding-bottom: 14rem;
+        }
+    """,
+    "globalCSS": """
+        html, body {
+            overflow: visible !important;
+        }
+        .ace_autocomplete {
+            z-index: 999999 !important;
+            max-height: min(280px, 45vh);
+        }
+    """,
+}
+
+
+def inject_sql_editor_layout_css() -> None:
+    """Evita que abas Streamlit cortem o popup de autocomplete do iframe."""
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stTabs"] [data-baseweb="tab-panel"] {
+            overflow: visible !important;
+        }
+        div[data-testid="stTabs"] [data-baseweb="tab-panel"] > div {
+            overflow: visible !important;
+        }
+        div[data-testid="stCustomComponentV1"] {
+            overflow: visible !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+SQL_KEYWORDS = [
+    "SELECT", "FROM", "WHERE", "GROUP BY", "ORDER BY", "HAVING", "LIMIT", "OFFSET",
+    "AS", "AND", "OR", "NOT", "IN", "IS", "NULL", "LIKE", "ILIKE", "BETWEEN",
+    "DISTINCT", "JOIN", "INNER JOIN", "LEFT JOIN", "RIGHT JOIN", "FULL JOIN",
+    "CROSS JOIN", "ON", "UNION", "UNION ALL", "WITH", "CASE", "WHEN", "THEN",
+    "ELSE", "END", "ASC", "DESC", "EXISTS", "CAST", "TRY_CAST",
+]
+
+DUCKDB_FUNCTIONS = [
+    "COUNT", "SUM", "AVG", "MIN", "MAX", "MEDIAN", "STDDEV", "VARIANCE",
+    "STRING_AGG", "LIST", "ARRAY_AGG", "FIRST", "LAST", "QUANTILE",
+    "UPPER", "LOWER", "TRIM", "LTRIM", "RTRIM", "LENGTH", "SUBSTRING",
+    "REPLACE", "CONCAT", "COALESCE", "NULLIF", "IFNULL",
+    "DATE_TRUNC", "EXTRACT", "YEAR", "MONTH", "DAY", "strftime", "strptime",
+    "CURRENT_DATE", "CURRENT_TIMESTAMP", "TODAY",
+    "ROUND", "FLOOR", "CEIL", "ABS", "SQRT", "POWER", "GREATEST", "LEAST",
+    "ROW_NUMBER", "RANK", "DENSE_RANK", "LAG", "LEAD",
+    "REGEXP_MATCHES", "SPLIT_PART", "LIST_VALUE", "UNNEST", "typeof",
+    "read_parquet", "read_csv_auto",
+]
+
+
+def table_column_names(table: str) -> list[str]:
+    derived = get_derived_sql(table)
+    if derived:
+        df = con.execute(f"DESCRIBE ({derived})").df()
+    else:
+        df = get_schema(table)
+    return df["column_name"].tolist()
+
+
+def build_sql_completions(
+    tables: list[str],
+    schemas: dict[str, list[str]],
+) -> list[dict[str, str | int]]:
+    completions: list[dict[str, str | int]] = []
+    seen: set[str] = set()
+
+    def add(caption: str, value: str, score: int, meta: str) -> None:
+        if value in seen:
+            return
+        seen.add(value)
+        completions.append({"caption": caption, "value": value, "score": score, "meta": meta})
+
+    for kw in SQL_KEYWORDS:
+        add(kw, kw, 400, "keyword")
+    for fn in DUCKDB_FUNCTIONS:
+        add(fn, fn, 300, "função")
+    for table in tables:
+        add(table, f'"{table}"', 500, "tabela")
+    for table, cols in schemas.items():
+        for col in cols:
+            quoted = f'"{col}"'
+            add(f"{table}.{col}", quoted, 450, "coluna")
+            add(col, quoted, 420, "coluna")
+    return completions
 
 
 def build_derived_select(table: str, select_expr: str) -> str:
@@ -461,7 +604,7 @@ has_derived = has_derived_sql(active)
 
 sql_editor_ctx = f"{active}:{'derived' if has_derived else 'raw'}"
 if st.session_state.get("sql_editor_ctx") != sql_editor_ctx:
-    st.session_state.sql_editor = default_preview_sql(active)
+    st.session_state.pop("sql_editor", None)
     st.session_state.sql_editor_ctx = sql_editor_ctx
 
 tabs = st.tabs(["Explorar", "SQL", "Colunas", "Exportar"])
@@ -549,6 +692,40 @@ with tabs[0]:
 # ===========================================================================
 with tabs[1]:
     st.header("Editor SQL")
+    inject_sql_editor_layout_css()
+
+    default_sql = default_preview_sql(active)
+
+    if isinstance(st.session_state.get("sql_editor"), str):
+        st.session_state.sql_editor = {"text": st.session_state.sql_editor}
+    if "sql_editor" not in st.session_state:
+        st.session_state.sql_editor = {"text": default_sql}
+
+    sql_code = st.session_state.sql_editor.get("text", default_sql)
+    table_schemas = {t: table_column_names(t) for t in loaded}
+    sql_completions = build_sql_completions(loaded, table_schemas)
+
+    st.caption(
+        "Sugestões: **Ctrl+Space** · **Ctrl+Enter** executa · navegue com **↑↓** e confirme com **Enter** ou **Tab**."
+    )
+    editor_response = code_editor(
+        code=sql_code,
+        lang="sql",
+        height=[14, 22],
+        key="sql_editor",
+        response_mode=["debounce"],
+        options=SQL_EDITOR_OPTIONS,
+        props=SQL_EDITOR_PROPS,
+        component_props=SQL_EDITOR_COMPONENT_PROPS,
+        completions=sql_completions,
+    )
+    sql_input = (editor_response or st.session_state.sql_editor).get("text", sql_code)
+
+    col_run, col_clear = st.columns([1, 5])
+    run_btn = col_run.button("Executar", type="primary", key="btn_sql_run")
+
+    if sql_editor_run_requested(editor_response, run_btn):
+        execute_sql_input(sql_input)
 
     with st.expander("Referência rápida — tabelas e exemplos"):
         st.markdown(f"**Tabela ativa:** `{active}`")
@@ -580,33 +757,6 @@ GROUP BY 1 ORDER BY 2 DESC;
 """,
             language="sql",
         )
-
-    default_sql = default_preview_sql(active)
-    sql_input = st.text_area(
-        "Query DuckDB",
-        height=180,
-        key="sql_editor",
-        placeholder=default_sql,
-    )
-
-    col_run, col_clear = st.columns([1, 5])
-    run_btn = col_run.button("Executar", type="primary", key="btn_sql_run")
-
-    if run_btn and sql_input.strip():
-        try:
-            with st.spinner("Executando..."):
-                query = strip_sql(sql_input)
-                stripped = query.upper()
-                if stripped.startswith("SELECT") or stripped.startswith("WITH"):
-                    df_sql, sql_info = paginate_sql(query, key="sql_page")
-                    st.session_state.last_result_sql = query
-                    st.success(f"{sql_info.total:,} linhas no resultado.")
-                    show_paginated_dataframe(df_sql, sql_info, "sql_page")
-                else:
-                    con.execute(query)
-                    st.success("Comando executado.")
-        except Exception as e:
-            st.error(f"Erro SQL: {e}")
 
 
 # ===========================================================================
