@@ -1,7 +1,7 @@
 # Parquet Query — Especificação Viva
 
-> **Última atualização:** 2026-06-17  
-> **Versão do spec:** 1.5.1  
+> **Última atualização:** 2026-09-01  
+> **Versão do spec:** 1.6.1  
 > **Mantenedor:** IA + desenvolvedor (atualização contínua a cada prompt relevante)
 
 ---
@@ -41,25 +41,43 @@ Campos a revisar em cada atualização: `Última atualização`, módulos, fluxo
 
 ```
 Parquet Query/
-├── app.py                 # UI Streamlit + lógica de queries/export
-├── data_store.py          # Versionamento, manifest, migração legacy
-├── pq_dax_translator.py   # Tradutor DAX → SQL DuckDB
-├── pq_m_translator.py     # Tradutor Power Query (M) → SQL DuckDB
-├── data/                  # Arquivos de dados + _manifest.json
-├── utils/                 # Scripts utilitários (conversão parquet→csv/xlsx)
+├── app.py                      # Entrada Streamlit (~55 linhas)
+├── pq/                         # Pacote principal
+│   ├── config.py               # Constantes, caminhos, SQL keywords
+│   ├── db/                     # DuckDB — conexão, schema, derived, cache
+│   ├── export/                 # Exportação bytes/disco
+│   ├── overview/               # SQL e formatação pt-BR de overview
+│   ├── storage/                # Versionamento data/ + manifest
+│   ├── translators/            # DAX e M → SQL DuckDB
+│   └── ui/                     # Streamlit — sidebar, abas, componentes
+├── data_store.py               # Shim → pq.storage.data_store
+├── pq_dax_translator.py        # Shim → pq.translators.dax
+├── pq_m_translator.py          # Shim → pq.translators.m
+├── tests/                      # pytest (tradutores, storage, derived, export)
+├── data/                       # Arquivos de dados + _manifest.json
 ├── requirements.txt
+├── requirements-dev.txt        # pytest
 ├── run.bat
-└── LIVING_SPEC.md         # Este arquivo
+└── LIVING_SPEC.md
 ```
 
 ### Responsabilidades por módulo
 
-| Arquivo | Papel |
-|---------|-------|
-| `app.py` | Ponto de entrada; sidebar (carregar parquets/CSV); 4 abas; session state; helpers DuckDB/paginação/export |
-| `data_store.py` | Nomenclatura `{base}_v{N}`, timeline, `_manifest.json`, migração `input/`/`output/` → `data/` |
-| `pq_dax_translator.py` | Tokenizer/parser DAX; `translate_power_column`, `normalize_power_formula`; `ParseError` |
-| `pq_m_translator.py` | Passos M (`Table.SelectRows`, `TransformColumnTypes`, `RemoveColumns`, `SelectColumns`) → SQL DuckDB com CTEs; `translate_m_to_sql`, `m_source_table` |
+| Arquivo / pacote | Papel |
+|---------|--------|
+| `app.py` | Entrada fina: `main()`, orquestra sidebar + abas |
+| `pq/config.py` | `DATA_DIR`, `CAST_TYPES`, `LIMITE_XLSX`, keywords SQL |
+| `pq/db/` | Conexão DuckDB, views, schema, SQL derivado, queries paginadas |
+| `pq/export/` | `export_to_bytes`, `save_to_data` |
+| `pq/overview/` | SQL de overview, `format_number_pt` |
+| `pq/storage/data_store.py` | Nomenclatura `{base}_v{N}`, timeline, `_manifest.json`, migração legacy |
+| `pq/translators/dax.py` | Tokenizer/parser DAX → SQL DuckDB |
+| `pq/translators/m.py` | Passos M → SQL DuckDB com CTEs |
+| `pq/ui/context.py` | `WorkContext` — dataclass compartilhada entre abas |
+| `pq/ui/state.py` | Session state, `set_derived_sql`, execução SQL |
+| `pq/ui/sidebar.py` | Carregamento de arquivos e tabela ativa |
+| `pq/ui/tabs/` | Uma aba por arquivo (`explore`, `sql_tab`, `columns`, `export_tab`) |
+| `pq/ui/components/` | Paginação, editor SQL (autocomplete, CSS) |
 
 ---
 
@@ -67,15 +85,16 @@ Parquet Query/
 
 ```mermaid
 flowchart LR
-    subgraph UI [Streamlit app.py]
-        Sidebar[Sidebar: carregar arquivos]
-        Tabs[4 abas]
+    subgraph UI [pq/ui]
+        Sidebar[sidebar.py]
+        Tabs[tabs/*.py]
+        Ctx[WorkContext]
     end
-    subgraph Engine [DuckDB]
+    subgraph Engine [pq/db]
         Views[Views por arquivo]
         SQL[Queries DuckDB]
     end
-    subgraph Storage [data/]
+    subgraph Storage [pq/storage]
         Parquet[*.parquet / csv / xlsx]
         Manifest[_manifest.json]
     end
@@ -85,6 +104,7 @@ flowchart LR
     Views --> Parquet
     Tabs -->|export / save| Parquet
     Parquet --> Manifest
+    Ctx --> Tabs
 ```
 
 ### Fluxo de dados
@@ -130,7 +150,7 @@ Funções-chave em `data_store.py`: `base_name_from`, `version_from_stem`, `vers
 | `sql_last_submit_id` | Último `id` de Ctrl+Enter processado (evita reexecução) |
 | `active_table` | Via `selectbox` na sidebar |
 
-Caches Streamlit: `get_con` (`@st.cache_resource`), schema/overview (`@st.cache_data`, ttl=300). `set_derived_sql` limpa cache de `get_classificatory_overview` e `get_numeric_overview`.
+Caches Streamlit: `get_connection` (`@st.cache_resource`); schema/overview (`@st.cache_data`, ttl=300) — **não** passam a conexão DuckDB como argumento (não serializável); usam `get_connection()` no corpo da função.
 
 ### Overview de valores (Explorar)
 
@@ -145,7 +165,7 @@ VARCHAR no modo numérico usa `TRY_CAST(TRIM(col) AS DOUBLE)`. Helper: `format_n
 
 ---
 
-## Tradutor M (`pq_m_translator.py`)
+## Tradutor M (`pq/translators/m.py`)
 
 - Entrada: passos M encadeados (`#"Nome" = Table....,`).
 - Suportado: `Table.SelectRows`, `Table.TransformColumnTypes`, `Table.RemoveColumns`, `Table.SelectColumns`.
@@ -155,12 +175,12 @@ VARCHAR no modo numérico usa `TRY_CAST(TRIM(col) AS DOUBLE)`. Helper: `format_n
 
 ---
 
-## Tradutor DAX (`pq_dax_translator.py`)
+## Tradutor DAX (`pq/translators/dax.py`)
 
 - Entrada: `Nome da Coluna = expressão` (formato Power BI).
 - `normalize_power_formula` limpa referências `'Tabela'[Coluna]` → colunas da view atual.
 - Suporte parcial: IF, VAR/RETURN, comentários `--`/`//`, SUBSTITUTE, FIND, SEARCH, TRIM, LEFT, FORMAT, TODAY, `.[Date]`, `.[Year]`, operadores, strings.
-- Erros: `ParseError` (herda `ValueError`).
+- Erros: `ParseError` em `pq/translators/errors.py` (compartilhado DAX/M).
 - API pública: `translate_power_column`, `translate_dax_expression`, `normalize_power_formula`.
 
 ---
@@ -189,6 +209,8 @@ streamlit>=1.35
 streamlit-code-editor>=0.1.22
 ```
 
+Dev: `requirements-dev.txt` (`pytest>=8.0`). Executar testes: `python -m pytest tests/`
+
 ---
 
 ## Estado conhecido / decisões
@@ -197,21 +219,36 @@ streamlit-code-editor>=0.1.22
 |--------|--------|
 | `utils/parquet_to_csv.py`, `utils/parquet_to_xlsx.py` | Marcados como deletados no git (D no status); scripts standalone de conversão |
 | Diretórios legacy `input/`, `output/` | Migrados automaticamente para `data/` na primeira execução |
-| Testes automatizados | Não existem ainda |
+| Testes automatizados | `tests/` — pytest para tradutores, storage, derived, export |
 | Autenticação / multi-usuário | Não aplicável (app local) |
 
 ---
 
 ## Tarefas comuns para a IA
 
-- **Nova feature na UI:** editar `app.py`; manter padrão de abas/subtabs; usar `work_sql` como base SQL.
-- **Versionamento/export:** usar `data_store.record_version` + `save_to_data`.
-- **Nova função DAX:** estender `pq_dax_translator.py` (`_Parser`, mapeamentos de funções).
-- **Novo formato de arquivo:** atualizar `LOADABLE_EXTENSIONS`, `duckdb_read_expr`, `export_to_bytes`, `save_to_data`.
+- **Nova feature na UI:** editar módulo em `pq/ui/tabs/`; manter `WorkContext`; usar helpers de `pq/ui/state.py`.
+- **Versionamento/export:** usar `pq.storage.record_version` + `pq.export.save_to_data`.
+- **Nova função DAX:** estender `pq/translators/dax.py` (`_Parser`, mapeamentos de funções).
+- **Novo formato de arquivo:** atualizar `pq/config.LOADABLE_EXTENSIONS`, `pq/db/connection.duckdb_read_expr`, `pq/export/io`.
 
 ---
 
 ## Changelog
+
+### 2026-09-01 — v1.6.1 (fix crash ao carregar tabelas)
+
+- Corrigido crash do servidor ao carregar tabelas: funções `@st.cache_data` não recebem mais `DuckDBPyConnection` como parâmetro (objeto não hashable); usam `get_connection()` internamente.
+- Sidebar: `st.rerun()` após carregar arquivos selecionados.
+- Arquivos: `pq/db/schema.py`, `pq/db/cached.py`, `pq/ui/app_context.py`, `pq/ui/tabs/explore.py`, `pq/ui/sidebar.py`, `LIVING_SPEC.md`.
+
+### 2026-09-01 — v1.6.0 (reorganização em pacote `pq/`)
+
+- Refatoração: `app.py` reduzido a entrada fina; lógica dividida em `pq/db`, `pq/ui`, `pq/export`, `pq/overview`, `pq/storage`, `pq/translators`.
+- UI: `WorkContext`, sidebar e uma aba por módulo em `pq/ui/tabs/`.
+- `ParseError` unificado em `pq/translators/errors.py`.
+- Shims de compatibilidade: `data_store.py`, `pq_dax_translator.py`, `pq_m_translator.py`.
+- Testes: `tests/` com pytest (15 testes); `requirements-dev.txt`.
+- Arquivos: estrutura `pq/**`, `app.py`, `tests/**`, `LIVING_SPEC.md`.
 
 ### 2026-06-17 — v1.5.1 (parâmetros M genéricos)
 
