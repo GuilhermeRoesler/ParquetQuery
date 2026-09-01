@@ -15,7 +15,7 @@ def _format_int_pt(n: int) -> str:
     return f"-{formatted}" if n < 0 else formatted
 
 
-def format_number_pt(value, *, max_decimals: int = 6) -> str:
+def format_number_pt(value: object, *, max_decimals: int = 6) -> str:
     if value is None:
         return "—"
     try:

@@ -18,6 +18,13 @@ class PageInfo(NamedTuple):
     page_size: int
 
 
+def clear_sql_count_cache() -> None:
+    """Invalida cache de COUNT(*) usado por paginate_sql."""
+    for key in list(st.session_state.keys()):
+        if str(key).startswith("sql_cnt_"):
+            del st.session_state[key]
+
+
 def _pagination_page(key: str, pages: int) -> int:
     state_key = f"pg_{key}"
     if state_key not in st.session_state:
@@ -26,6 +33,15 @@ def _pagination_page(key: str, pages: int) -> int:
     page = max(1, min(page, pages))
     st.session_state[state_key] = page
     return page
+
+
+def _cached_sql_count(con: duckdb.DuckDBPyConnection, query: str, cache_key: str) -> int:
+    state_key = f"sql_cnt_{cache_key}_{hash(query)}"
+    if state_key not in st.session_state:
+        st.session_state[state_key] = con.execute(
+            f"SELECT COUNT(*) FROM ({query}) __q__"
+        ).fetchone()[0]
+    return int(st.session_state[state_key])
 
 
 def render_pagination_bar(key: str, info: PageInfo) -> None:
@@ -80,7 +96,7 @@ def paginate_sql(
 ) -> tuple[pd.DataFrame, PageInfo]:
     """Paginação diretamente no DuckDB — não carrega tudo na RAM."""
     query = strip_sql(sql)
-    total = con.execute(f"SELECT COUNT(*) FROM ({query}) __q__").fetchone()[0]
+    total = _cached_sql_count(con, query, key)
     pages = max(1, (total + page_size - 1) // page_size)
     page = _pagination_page(key, pages)
     offset = (page - 1) * page_size

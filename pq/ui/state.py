@@ -13,7 +13,11 @@ from pq.db.derived import (
     working_sql,
 )
 from pq.db.sql_utils import strip_sql
-from pq.ui.components.pagination import paginate_sql, show_paginated_dataframe
+from pq.ui.components.pagination import (
+    clear_sql_count_cache,
+    paginate_sql,
+    show_paginated_dataframe,
+)
 
 
 def init_state() -> None:
@@ -60,6 +64,7 @@ def set_derived_sql(table: str, sql: str | None) -> None:
     else:
         st.session_state.derived_by_table.pop(table, None)
     clear_overview_cache()
+    clear_sql_count_cache()
     st.session_state.pop("sql_editor_ctx", None)
 
 
@@ -92,5 +97,7 @@ def execute_sql_input(con: duckdb.DuckDBPyConnection, sql_text: str) -> None:
             else:
                 con.execute(query)
                 st.success("Comando executado.")
-    except Exception as exc:
+    except duckdb.Error as exc:
         st.error(f"Erro SQL: {exc}")
+    except Exception as exc:
+        st.error(f"Erro: {exc}")

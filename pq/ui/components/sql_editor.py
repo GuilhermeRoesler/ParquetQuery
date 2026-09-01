@@ -6,7 +6,6 @@ import streamlit as st
 
 from pq.config import DUCKDB_FUNCTIONS, SQL_KEYWORDS
 
-
 SQL_EDITOR_OPTIONS = {
     "enableBasicAutocompletion": True,
     "enableLiveAutocompletion": True,

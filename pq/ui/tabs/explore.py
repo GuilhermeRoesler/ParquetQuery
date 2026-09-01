@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import duckdb
 import streamlit as st
 
 from pq.config import OVERVIEW_AGGS
-from pq.db.cached import get_classificatory_overview, get_numeric_overview
+from pq.db.cached import get_classificatory_overview_summary, get_numeric_overview
+from pq.db.sql_utils import quote_ident
 from pq.overview.format_pt import format_number_pt
 from pq.overview.sql import build_classificatory_overview_sql, build_numeric_overview_sql
-from pq.ui.components.pagination import paginate, paginate_sql, show_paginated_dataframe
+from pq.ui.components.pagination import paginate_sql, show_paginated_dataframe
 from pq.ui.context import WorkContext
 
 
@@ -33,7 +35,7 @@ def render_explore_tab(ctx: WorkContext) -> None:
             ctx.col_names,
             key="preview_cols",
         )
-        cols_expr = ", ".join(f'"{c}"' for c in preview_cols) if preview_cols else "*"
+        cols_expr = ", ".join(quote_ident(c) for c in preview_cols) if preview_cols else "*"
         preview_sql = f"SELECT {cols_expr} FROM {ctx.work_from_clause}"
         df_preview, preview_info = paginate_sql(ctx.con, preview_sql, key="preview_page")
         show_paginated_dataframe(df_preview, preview_info, "preview_page")
@@ -66,20 +68,18 @@ def render_explore_tab(ctx: WorkContext) -> None:
             try:
                 if overview_mode == "Classificatório":
                     with st.spinner("Calculando frequências..."):
-                        df_overview = get_classificatory_overview(
+                        distinct_count, total_rows = get_classificatory_overview_summary(
                             ctx.active, overview_col, ctx.derived_sql
-                        )
-                        distinct_count = len(df_overview)
-                        total_rows = (
-                            int(df_overview["quantidade"].sum()) if not df_overview.empty else 0
                         )
                         st.success(
                             f"{distinct_count:,} valor(es) distinto(s) · {total_rows:,} linhas contabilizadas"
                         )
-                        df_overview_page, overview_info = paginate(
-                            df_overview, key="overview_page", page_size=100
+                        df_overview_page, overview_info = paginate_sql(
+                            ctx.con, overview_sql, key="overview_page", page_size=100
                         )
-                        show_paginated_dataframe(df_overview_page, overview_info, "overview_page")
+                        show_paginated_dataframe(
+                            df_overview_page, overview_info, "overview_page"
+                        )
                 else:
                     with st.spinner("Calculando agregação..."):
                         result = get_numeric_overview(
@@ -96,5 +96,7 @@ def render_explore_tab(ctx: WorkContext) -> None:
                             unsafe_allow_html=True,
                         )
                         st.caption(f"{overview_agg} · `{overview_col}`")
+            except duckdb.Error as exc:
+                st.error(f"Erro SQL: {exc}")
             except Exception as exc:
                 st.error(f"Erro ao calcular overview: {exc}")

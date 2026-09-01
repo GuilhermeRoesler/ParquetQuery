@@ -326,7 +326,7 @@ class _Parser:
             resolved = self._resolve_var(name_tok.value)
             if resolved is not None:
                 return resolved
-            return name_tok.value
+            raise ParseError(f"Identificador desconhecido: '{name_tok.value}'")
 
         self._advance()
         args: list[str] = []
@@ -403,7 +403,7 @@ class _Parser:
     @staticmethod
     def _fn_nullary(args: list[str], sql: str) -> str:
         if args:
-            raise ParseError(f"Função não aceita argumentos.")
+            raise ParseError("Função não aceita argumentos.")
         return sql
 
     @staticmethod
@@ -538,7 +538,7 @@ class _Parser:
             pairs = pairs[:-1]
         else:
             default = "NULL"
-        parts = [f"CASE"]
+        parts = ["CASE"]
         for i in range(0, len(pairs), 2):
             parts.append(f"WHEN {expr} = {pairs[i]} THEN {pairs[i + 1]}")
         parts.append(f"ELSE {default} END")

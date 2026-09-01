@@ -1,7 +1,7 @@
 # Parquet Query — Especificação Viva
 
 > **Última atualização:** 2026-09-01  
-> **Versão do spec:** 1.6.4  
+> **Versão do spec:** 1.7.0  
 > **Mantenedor:** IA + desenvolvedor (atualização contínua a cada prompt relevante)
 
 ---
@@ -39,6 +39,8 @@ No Windows, `run.bat` apenas delega para `run.ps1` (PowerShell 5.1+).
 
 Os scripts de launch criam/ativam `.venv`, instalam `requirements.txt`, garantem a pasta `data/` e sobem o Streamlit. A porta padrão é `8501` (override: `STREAMLIT_SERVER_PORT`); se estiver ocupada, tentam automaticamente a próxima (`8502`, …) via `find_free_port.py`.
 
+Flag **`--dev`** (`run.sh --dev` ou `run.ps1 -Dev`): instala também `requirements-dev.txt` (pytest, ruff).
+
 ---
 
 ## Estrutura do repositório
@@ -49,7 +51,7 @@ Parquet Query/
 ├── pq/                         # Pacote principal
 │   ├── config.py               # Constantes, caminhos, SQL keywords
 │   ├── db/                     # DuckDB — conexão, schema, derived, cache
-│   ├── export/                 # Exportação bytes/disco
+│   ├── export/                 # io.py + query_export.py (COPY/streaming)
 │   ├── overview/               # SQL e formatação pt-BR de overview
 │   ├── storage/                # Versionamento data/ + manifest
 │   ├── translators/            # DAX e M → SQL DuckDB
@@ -57,10 +59,13 @@ Parquet Query/
 ├── data_store.py               # Shim → pq.storage.data_store
 ├── pq_dax_translator.py        # Shim → pq.translators.dax
 ├── pq_m_translator.py          # Shim → pq.translators.m
-├── tests/                      # pytest (tradutores, storage, derived, export)
+├── tests/                      # pytest (tradutores, storage, derived, export, sql_utils)
 ├── data/                       # Arquivos de dados + _manifest.json
 ├── requirements.txt
-├── requirements-dev.txt        # pytest
+├── requirements-dev.txt        # pytest, ruff
+├── pyproject.toml              # config pytest/ruff
+├── README.md                   # início rápido (detalhes em LIVING_SPEC.md)
+├── .github/workflows/ci.yml    # CI: ruff + pytest
 ├── find_free_port.py          # Helper: primeira porta TCP livre >= start
 ├── run.bat                    # Wrapper → run.ps1
 ├── run.ps1                    # Launch Windows (venv, deps, porta, Streamlit)
@@ -75,7 +80,8 @@ Parquet Query/
 | `app.py` | Entrada fina: `main()`, orquestra sidebar + abas |
 | `pq/config.py` | `DATA_DIR`, `CAST_TYPES`, `LIMITE_XLSX`, keywords SQL |
 | `pq/db/` | Conexão DuckDB, views, schema, SQL derivado, queries paginadas |
-| `pq/export/` | `export_to_bytes`, `save_to_data` |
+| `pq/db/sql_utils.py` | `strip_sql`, `quote_ident`, `validate_derived_sql` |
+| `pq/export/` | `export_to_bytes`, `save_to_data`; `query_export` (COPY/streaming) |
 | `pq/overview/` | SQL de overview, `format_number_pt` |
 | `pq/storage/data_store.py` | Nomenclatura `{base}_v{N}`, timeline, `_manifest.json`, migração legacy |
 | `pq/translators/dax.py` | Tokenizer/parser DAX → SQL DuckDB |
@@ -195,9 +201,9 @@ VARCHAR no modo numérico usa `TRY_CAST(TRIM(col) AS DOUBLE)`. Helper: `format_n
 ## Convenções de código
 
 - Python com `from __future__ import annotations`.
-- Paths via `pathlib.Path`; SQL com identificadores entre aspas duplas `"coluna"`.
-- Subqueries derivadas: `work_from()` → `"coluna"` ou `({derived}) __work__`; validação interna usa `__validate__`.
-- Paginação pesada: `paginate_sql` (COUNT + LIMIT/OFFSET no DuckDB), não `paginate` em DataFrame grande.
+- Paths via `pathlib.Path`; identificadores SQL via `quote_ident()` em `pq/db/sql_utils.py`.
+- Subqueries derivadas: `work_from()` → `"coluna"` ou `({derived}) __work__`; validação com `validate_derived_sql()` antes de aplicar transformações.
+- Paginação pesada: `paginate_sql` (COUNT cacheado em session state + LIMIT/OFFSET no DuckDB), não `paginate` em DataFrame grande.
 - UI de paginação: `show_paginated_dataframe` + `render_pagination_bar` — `st.container(horizontal=True)` com botões ◀/▶ colados ao texto, centralizado abaixo da tabela; estado em `pg_{key}`.
 - Limite XLSX: `LIMITE_XLSX = 1_048_576` (limite do Excel).
 - UI em português; mensagens de erro amigáveis via `st.error` / `st.warning`.
@@ -216,7 +222,7 @@ streamlit>=1.35
 streamlit-code-editor>=0.1.22
 ```
 
-Dev: `requirements-dev.txt` (`pytest>=8.0`). Executar testes: `python -m pytest tests/`
+Dev: `requirements-dev.txt` (`pytest>=8.0`, `ruff>=0.8.0`). Executar testes: `python -m pytest tests/`; lint: `python -m ruff check .`
 
 ---
 
@@ -226,7 +232,9 @@ Dev: `requirements-dev.txt` (`pytest>=8.0`). Executar testes: `python -m pytest 
 |--------|--------|
 | `utils/parquet_to_csv.py`, `utils/parquet_to_xlsx.py` | Marcados como deletados no git (D no status); scripts standalone de conversão |
 | Diretórios legacy `input/`, `output/` | Migrados automaticamente para `data/` na primeira execução |
-| Testes automatizados | `tests/` — pytest para tradutores, storage, derived, export |
+| Testes automatizados | `tests/` — pytest (~29 testes); CI GitHub Actions |
+| Export grande | Parquet/CSV via DuckDB `COPY`; XLSX em chunks (`fetch_df_chunk`) |
+| Manifest corrompido | `load_manifest` retorna fallback + aviso na UI; `save_manifest` limpa flags `_corrupt` |
 | Autenticação / multi-usuário | Não aplicável (app local) |
 
 ---
@@ -241,6 +249,19 @@ Dev: `requirements-dev.txt` (`pytest>=8.0`). Executar testes: `python -m pytest 
 ---
 
 ## Changelog
+
+### 2026-09-01 — v1.7.0 (auditoria: robustez, performance, DX)
+
+- **SQL:** `quote_ident`, `validate_derived_sql`; renomear/remover colunas validam antes de aplicar.
+- **Export:** `pq/export/query_export.py` — Parquet/CSV via DuckDB COPY; XLSX em chunks; `safe_data_path` anti-traversal.
+- **Overview classificatório:** paginação server-side (`paginate_sql`); resumo via `get_classificatory_overview_summary`.
+- **Paginação:** cache de `COUNT(*)` em session state; `clear_sql_count_cache` ao mudar derived SQL.
+- **Manifest:** fallback se `_manifest.json` corrompido; aviso na sidebar/export.
+- **DAX:** identificador desconhecido → `ParseError` (não passa cru para SQL).
+- **Limpeza:** removidos `fetch_sql_page`, `count_rows`, `get_classificatory_overview` (RAM).
+- **DX:** `README.md`, `pyproject.toml`, CI (ruff + pytest), `run.sh --dev` / `run.ps1 -Dev`.
+- **Testes:** +14 (sql_utils, manifest, query_export, DAX unknown ident).
+- Arquivos: `pq/**`, `tests/**`, `run.ps1`, `run.sh`, `README.md`, `pyproject.toml`, `.github/workflows/ci.yml`, `.cursor/rules/living-spec.mdc`, `LIVING_SPEC.md`.
 
 ### 2026-09-01 — v1.6.1 (fix crash ao carregar tabelas)
 

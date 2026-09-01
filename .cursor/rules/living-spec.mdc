@@ -18,7 +18,7 @@ Atualize `LIVING_SPEC.md` na mesma sessão:
 ## Regras rápidas (não substituem o spec)
 
 - App Streamlit + DuckDB; dados em `data/` com versionamento `{base}_vN`
-- SQL de trabalho: `working_sql()` / `derived_by_table` em `app.py`
+- SQL de trabalho: `working_sql()` / `derived_by_table` em `pq/ui/state.py` e `pq/db/derived.py`
 - DAX: `pq_dax_translator.py` → SQL DuckDB
 - Paginação pesada: `paginate_sql`, não DataFrame inteiro
 - Código em português na UI; Python com type hints e `pathlib`

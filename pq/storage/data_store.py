@@ -36,13 +36,54 @@ def load_manifest(data_dir: Path) -> dict[str, Any]:
     path = manifest_path(data_dir)
     if not path.exists():
         return {"bases": {}}
-    return json.loads(path.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return {
+            "bases": {},
+            "_corrupt": True,
+            "_corrupt_message": str(exc),
+        }
+    if not isinstance(data, dict):
+        return {
+            "bases": {},
+            "_corrupt": True,
+            "_corrupt_message": "Manifesto deve ser um objeto JSON.",
+        }
+    return data
+
+
+def manifest_is_corrupt(manifest: dict[str, Any]) -> bool:
+    return bool(manifest.get("_corrupt"))
+
+
+def manifest_corrupt_message(manifest: dict[str, Any]) -> str:
+    return str(manifest.get("_corrupt_message", "JSON inválido"))
+
+
+def _clean_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
+    return {k: v for k, v in manifest.items() if not str(k).startswith("_corrupt")}
+
+
+def safe_data_path(data_dir: Path, filename_stem: str, ext: str) -> Path:
+    """Resolve caminho seguro dentro de `data/` (rejeita traversal)."""
+    stem = filename_stem.strip()
+    if not stem or stem in {".", ".."}:
+        raise ValueError("Nome de arquivo inválido.")
+    if any(sep in stem for sep in ("/", "\\", "\0")):
+        raise ValueError("Nome de arquivo contém caracteres inválidos.")
+    if ".." in Path(stem).parts:
+        raise ValueError("Nome de arquivo inválido.")
+    dest = (data_dir / f"{stem}.{ext}").resolve()
+    if not dest.is_relative_to(data_dir.resolve()):
+        raise ValueError("Caminho de destino fora de data/.")
+    return dest
 
 
 def save_manifest(data_dir: Path, manifest: dict[str, Any]) -> None:
     data_dir.mkdir(parents=True, exist_ok=True)
     manifest_path(data_dir).write_text(
-        json.dumps(manifest, indent=2, ensure_ascii=False),
+        json.dumps(_clean_manifest(manifest), indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
 

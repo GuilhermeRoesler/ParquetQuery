@@ -7,7 +7,7 @@ from pq.db.derived import (
     work_from_clause,
     working_sql,
 )
-from pq.db.sql_utils import strip_sql
+from pq.db.sql_utils import quote_ident, strip_sql, validate_derived_sql
 
 __all__ = [
     "build_derived_select",
@@ -15,9 +15,11 @@ __all__ = [
     "duckdb_read_expr",
     "get_connection",
     "list_views",
+    "quote_ident",
     "register_view",
     "run_query",
     "strip_sql",
+    "validate_derived_sql",
     "work_from_clause",
     "working_sql",
 ]

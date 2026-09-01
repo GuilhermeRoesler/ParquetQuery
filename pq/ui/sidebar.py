@@ -11,14 +11,18 @@ from pq.config import LOADABLE_EXTENSIONS
 from pq.db.cached import clear_overview_cache
 from pq.db.connection import register_view
 from pq.db.queries import count_from_sql
-from pq.db.schema import count_rows, get_schema
+from pq.db.schema import get_schema
 from pq.storage import (
     base_name_from,
     build_timeline,
     format_bytes,
     list_data_files,
+    load_manifest,
+    manifest_corrupt_message,
+    manifest_is_corrupt,
     version_from_stem,
 )
+from pq.ui.components.pagination import clear_sql_count_cache
 from pq.ui.state import has_derived_sql, set_derived_sql, work_from
 
 
@@ -30,6 +34,13 @@ def render_sidebar(
         st.title("⚡ Parquet Query")
         st.caption("Dados versionados em `data/`")
         st.markdown("---")
+
+        manifest = load_manifest(data_dir)
+        if manifest_is_corrupt(manifest):
+            st.warning(
+                f"`_manifest.json` corrompido ou inválido: {manifest_corrupt_message(manifest)}. "
+                "Metadados de versão podem estar incompletos até a próxima exportação."
+            )
 
         data_files = [
             path
@@ -61,8 +72,8 @@ def render_sidebar(
                         st.session_state.loaded_tables.append(df_path.stem)
                     set_derived_sql(df_path.stem, None)
                 get_schema.clear()
-                count_rows.clear()
                 clear_overview_cache()
+                clear_sql_count_cache()
                 st.success(f"{len(selected)} tabela(s) carregada(s).")
                 st.rerun()
 

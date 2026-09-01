@@ -6,15 +6,19 @@ import pandas as pd
 import streamlit as st
 
 from pq.config import LIMITE_XLSX, LOADABLE_EXTENSIONS
-from pq.db.connection import run_query
-from pq.export.io import export_extension, export_to_bytes, save_to_data
+from pq.db.sql_utils import quote_ident
+from pq.export.io import export_extension
+from pq.export.query_export import export_query_to_bytes, export_query_to_path
 from pq.storage import (
     build_timeline,
     files_for_version,
     list_version_numbers,
     load_manifest,
+    manifest_corrupt_message,
+    manifest_is_corrupt,
     next_available_version,
     record_version,
+    safe_data_path,
     versioned_stem,
 )
 from pq.ui.context import WorkContext
@@ -23,6 +27,13 @@ from pq.ui.context import WorkContext
 def render_export_tab(ctx: WorkContext) -> None:
     st.header("Exportar")
     st.caption(f"Base de dados: `{ctx.current_base}` · destino padrão: `data/`")
+
+    manifest = load_manifest(ctx.data_dir)
+    if manifest_is_corrupt(manifest):
+        st.warning(
+            f"`_manifest.json` corrompido: {manifest_corrupt_message(manifest)}. "
+            "A exportação recriará o manifesto ao salvar."
+        )
 
     export_source = st.radio(
         "O que exportar?",
@@ -43,7 +54,7 @@ def render_export_tab(ctx: WorkContext) -> None:
             st.warning("Nenhum resultado encontrado. Execute uma query na aba SQL primeiro.")
             st.stop()
     else:
-        export_sql = f'SELECT * FROM "{ctx.active}"'
+        export_sql = f"SELECT * FROM {quote_ident(ctx.active)}"
 
     with st.expander("SQL que será exportado"):
         st.code(export_sql, language="sql")
@@ -119,7 +130,6 @@ def render_export_tab(ctx: WorkContext) -> None:
             key="export_filename",
         )
 
-        manifest = load_manifest(ctx.data_dir)
         version_meta = (
             manifest.get("bases", {})
             .get(ctx.current_base, {})
@@ -131,7 +141,17 @@ def render_export_tab(ctx: WorkContext) -> None:
                 st.json(version_meta)
 
     overwrite = version_mode == "Sobrescrever versão" and bool(existing_versions)
-    dest_path = ctx.data_dir / f"{export_filename}.{export_extension(export_fmt)}"
+
+    try:
+        dest_path = safe_data_path(
+            ctx.data_dir,
+            export_filename,
+            export_extension(export_fmt),
+        )
+    except ValueError as exc:
+        st.error(str(exc))
+        st.stop()
+
     st.caption(f"Destino: `{dest_path}`")
 
     col_dl, col_save = st.columns(2)
@@ -139,18 +159,16 @@ def render_export_tab(ctx: WorkContext) -> None:
     if col_dl.button("Baixar arquivo", type="primary", key="btn_download"):
         try:
             with st.spinner("Preparando arquivo..."):
-                df_exp = run_query(ctx.con, export_sql)
-
-                if export_fmt == "XLSX" and len(df_exp) > LIMITE_XLSX:
+                data, mime, export_result = export_query_to_bytes(
+                    ctx.con, export_sql, export_fmt
+                )
+                if export_result.truncated:
                     st.warning(
-                        f"O resultado tem {len(df_exp):,} linhas. O Excel suporta até {LIMITE_XLSX:,}. "
-                        "Apenas as primeiras serão exportadas."
+                        f"O resultado foi limitado a {export_result.row_count:,} linhas "
+                        f"(máximo Excel: {LIMITE_XLSX:,})."
                     )
-                    df_exp = df_exp.head(LIMITE_XLSX)
 
                 fname = f"{export_filename}.{export_extension(export_fmt)}"
-                data, mime = export_to_bytes(df_exp, export_fmt)
-
                 st.download_button(
                     label=f"Clique para baixar {fname}",
                     data=data,
@@ -164,38 +182,39 @@ def render_export_tab(ctx: WorkContext) -> None:
     if col_save.button("Salvar em data/", key="btn_save_data"):
         try:
             with st.spinner("Salvando..."):
-                df_exp = run_query(ctx.con, export_sql)
-
-                if export_fmt == "XLSX" and len(df_exp) > LIMITE_XLSX:
-                    df_exp = df_exp.head(LIMITE_XLSX)
-                    st.warning(f"Exportado com limite de {LIMITE_XLSX:,} linhas.")
-
                 if overwrite:
                     for old_file in files_for_version(ctx.data_dir, ctx.current_base, export_version):
                         if old_file != dest_path:
                             old_file.unlink()
 
-                dest = save_to_data(df_exp, dest_path, export_fmt, overwrite=overwrite)
+                export_result = export_query_to_path(
+                    ctx.con, export_sql, dest_path, export_fmt
+                )
+                if export_result.truncated:
+                    st.warning(
+                        f"Exportado com limite de {export_result.row_count:,} linhas (máximo Excel)."
+                    )
+
                 record_version(
                     ctx.data_dir,
                     ctx.current_base,
                     export_version,
-                    filename=dest.name,
+                    filename=dest_path.name,
                     fmt=export_fmt,
                     source_table=ctx.active,
                     export_source=export_source,
                     overwrite=overwrite,
                 )
-                st.success(f"Versão salva em `{dest}`")
+                st.success(f"Versão salva em `{dest_path}` ({export_result.row_count:,} linhas)")
                 if (
-                    dest.suffix.lower() in LOADABLE_EXTENSIONS
-                    and dest.stem not in st.session_state.loaded_tables
+                    dest_path.suffix.lower() in LOADABLE_EXTENSIONS
+                    and dest_path.stem not in st.session_state.loaded_tables
                 ):
                     st.caption(
                         "Recarregue o arquivo na barra lateral para trabalhar com esta versão."
                     )
                 st.rerun()
-        except FileExistsError as exc:
+        except ValueError as exc:
             st.error(str(exc))
         except Exception as exc:
             st.error(f"Erro ao salvar: {exc}")

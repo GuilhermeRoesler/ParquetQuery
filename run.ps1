@@ -1,4 +1,8 @@
 #Requires -Version 5.1
+param(
+    [switch]$Dev
+)
+
 $ErrorActionPreference = 'Stop'
 
 $Root = $PSScriptRoot
@@ -97,6 +101,11 @@ try {
     Write-Host 'Instalando dependencias ...'
     Invoke-Checked $venvPython '-m' 'pip' 'install' '--upgrade' 'pip' '-q'
     Invoke-Checked $venvPython '-m' 'pip' 'install' '-r' 'requirements.txt' '-q'
+
+    if ($Dev -and (Test-Path 'requirements-dev.txt')) {
+        Write-Host 'Instalando dependencias de desenvolvimento ...'
+        Invoke-Checked $venvPython '-m' 'pip' 'install' '-r' 'requirements-dev.txt' '-q'
+    }
 
     if (-not (Test-Path 'data')) {
         Write-Host 'Criando pasta data\ ...'

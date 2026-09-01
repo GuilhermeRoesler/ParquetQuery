@@ -8,6 +8,8 @@ import duckdb
 import pandas as pd
 import streamlit as st
 
+from pq.db.sql_utils import quote_ident
+
 
 @st.cache_resource
 def get_connection() -> duckdb.DuckDBPyConnection:
@@ -26,7 +28,7 @@ def duckdb_read_expr(path: Path) -> str:
 
 def register_view(con: duckdb.DuckDBPyConnection, name: str, path: Path) -> None:
     source = duckdb_read_expr(path)
-    con.execute(f'CREATE OR REPLACE VIEW "{name}" AS SELECT * FROM {source}')
+    con.execute(f"CREATE OR REPLACE VIEW {quote_ident(name)} AS SELECT * FROM {source}")
 
 
 def list_views(con: duckdb.DuckDBPyConnection) -> list[str]:

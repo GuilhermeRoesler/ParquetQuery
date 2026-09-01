@@ -1,6 +1,10 @@
 import pytest
 
-from pq.translators.dax import normalize_power_formula, translate_dax_expression, translate_power_column
+from pq.translators.dax import (
+    normalize_power_formula,
+    translate_dax_expression,
+    translate_power_column,
+)
 from pq.translators.errors import ParseError
 
 
@@ -26,3 +30,8 @@ def test_normalize_strips_comments() -> None:
 def test_invalid_formula_raises() -> None:
     with pytest.raises(ParseError):
         translate_power_column("= expressão sem nome")
+
+
+def test_unknown_identifier_raises() -> None:
+    with pytest.raises(ParseError, match="Identificador desconhecido"):
+        translate_dax_expression("ColDesconhecida + 1")

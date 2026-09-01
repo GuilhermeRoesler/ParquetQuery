@@ -2,13 +2,27 @@
 
 from __future__ import annotations
 
+import duckdb
 import streamlit as st
 
 from pq.config import CAST_TYPES
+from pq.db.sql_utils import quote_ident, validate_derived_sql
 from pq.translators import ParseError, normalize_power_formula, translate_power_column
 from pq.ui.components.pagination import paginate_sql, show_paginated_dataframe
 from pq.ui.context import WorkContext
 from pq.ui.state import build_derived, set_derived_sql
+
+
+def _apply_derived(ctx: WorkContext, new_sql: str, success_msg: str) -> None:
+    try:
+        validate_derived_sql(ctx.con, new_sql)
+        set_derived_sql(ctx.active, new_sql)
+        st.success(success_msg)
+        st.rerun()
+    except duckdb.Error as exc:
+        st.error(f"SQL inválido: {exc}")
+    except Exception as exc:
+        st.error(f"Erro: {exc}")
 
 
 def render_columns_tab(ctx: WorkContext) -> None:
@@ -36,21 +50,16 @@ def render_columns_tab(ctx: WorkContext) -> None:
             new_col_name = st.text_input("Nome da nova coluna", key="new_col_name")
             new_col_expr = st.text_input(
                 "Expressão DuckDB",
-                placeholder=f'"{derived_cols[0]}" * 2',
+                placeholder=f'{quote_ident(derived_cols[0])} * 2',
                 key="new_col_expr",
             )
             if st.button("Adicionar", key="btn_add_col"):
                 if new_col_name and new_col_expr:
                     new_sql = build_derived(
-                        ctx.active, f'*, ({new_col_expr}) AS "{new_col_name}"'
+                        ctx.active,
+                        f"*, ({new_col_expr}) AS {quote_ident(new_col_name)}",
                     )
-                    try:
-                        ctx.con.execute(f"SELECT * FROM ({new_sql}) __validate__ LIMIT 1")
-                        set_derived_sql(ctx.active, new_sql)
-                        st.success(f"Coluna `{new_col_name}` adicionada.")
-                        st.rerun()
-                    except Exception as exc:
-                        st.error(f"Expressão inválida: {exc}")
+                    _apply_derived(ctx, new_sql, f"Coluna `{new_col_name}` adicionada.")
         else:
             with st.expander("Exemplos de fórmulas Power BI (DAX)"):
                 st.code(
@@ -93,16 +102,16 @@ Aging_Atual = IF('fValorNotas'[Dias em Atraso]>360,"9_Acima 361",
                             normalize_power_formula(pq_formula)
                         )
                         new_sql = build_derived(
-                            ctx.active, f'*, ({duck_expr}) AS "{col_name}"'
+                            ctx.active,
+                            f"*, ({duck_expr}) AS {quote_ident(col_name)}",
                         )
-                        ctx.con.execute(f"SELECT * FROM ({new_sql}) __validate__ LIMIT 1")
-                        set_derived_sql(ctx.active, new_sql)
-                        st.success(f"Coluna `{col_name}` adicionada via fórmula Power BI.")
-                        st.rerun()
+                        _apply_derived(
+                            ctx,
+                            new_sql,
+                            f"Coluna `{col_name}` adicionada via fórmula Power BI.",
+                        )
                     except ParseError as exc:
                         st.error(f"Fórmula inválida: {exc}")
-                    except Exception as exc:
-                        st.error(f"Erro ao aplicar coluna: {exc}")
 
     elif op == "Renomear coluna":
         rename_src = st.selectbox("Coluna original", derived_cols, key="rename_src")
@@ -110,41 +119,35 @@ Aging_Atual = IF('fValorNotas'[Dias em Atraso]>360,"9_Acima 361",
         if st.button("Renomear", key="btn_rename"):
             if rename_dst:
                 col_list = ", ".join(
-                    f'"{c}" AS "{rename_dst}"' if c == rename_src else f'"{c}"'
+                    f"{quote_ident(c)} AS {quote_ident(rename_dst)}"
+                    if c == rename_src
+                    else quote_ident(c)
                     for c in derived_cols
                 )
                 new_sql = build_derived(ctx.active, col_list)
-                set_derived_sql(ctx.active, new_sql)
-                st.success(f"`{rename_src}` renomeada para `{rename_dst}`.")
-                st.rerun()
+                _apply_derived(ctx, new_sql, f"`{rename_src}` renomeada para `{rename_dst}`.")
 
     elif op == "Remover colunas":
         drop_cols = st.multiselect("Colunas a remover", derived_cols, key="drop_cols")
         if st.button("Remover", key="btn_drop"):
             if drop_cols:
                 keep = [c for c in derived_cols if c not in drop_cols]
-                col_list = ", ".join(f'"{c}"' for c in keep)
+                col_list = ", ".join(quote_ident(c) for c in keep)
                 new_sql = build_derived(ctx.active, col_list)
-                set_derived_sql(ctx.active, new_sql)
-                st.success(f"{len(drop_cols)} coluna(s) removida(s).")
-                st.rerun()
+                _apply_derived(ctx, new_sql, f"{len(drop_cols)} coluna(s) removida(s).")
 
     elif op == "Cast de tipo":
         cast_col = st.selectbox("Coluna", derived_cols, key="cast_col")
         cast_type = st.selectbox("Tipo destino", CAST_TYPES, key="cast_type")
         if st.button("Aplicar cast", key="btn_cast"):
             col_list = ", ".join(
-                f'TRY_CAST("{c}" AS {cast_type}) AS "{c}"' if c == cast_col else f'"{c}"'
+                f"TRY_CAST({quote_ident(c)} AS {cast_type}) AS {quote_ident(c)}"
+                if c == cast_col
+                else quote_ident(c)
                 for c in derived_cols
             )
             new_sql = build_derived(ctx.active, col_list)
-            try:
-                ctx.con.execute(f"SELECT * FROM ({new_sql}) __validate__ LIMIT 1")
-                set_derived_sql(ctx.active, new_sql)
-                st.success(f"`{cast_col}` convertida para `{cast_type}`.")
-                st.rerun()
-            except Exception as exc:
-                st.error(f"Erro no cast: {exc}")
+            _apply_derived(ctx, new_sql, f"`{cast_col}` convertida para `{cast_type}`.")
 
     st.markdown("---")
 
@@ -160,8 +163,8 @@ Aging_Atual = IF('fValorNotas'[Dias em Atraso]>360,"9_Acima 361",
                 st.session_state.last_result_sql = current_sql
                 st.success(f"{der_info.total:,} linhas.")
                 show_paginated_dataframe(df_der, der_info, "derived_page")
-            except Exception as exc:
-                st.error(f"Erro: {exc}")
+            except duckdb.Error as exc:
+                st.error(f"Erro SQL: {exc}")
 
         if c2.button("Resetar transformações", key="btn_reset_derived"):
             set_derived_sql(ctx.active, None)

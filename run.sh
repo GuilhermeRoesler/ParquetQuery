@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+DEV=false
+for arg in "$@"; do
+  case "$arg" in
+    --dev) DEV=true ;;
+  esac
+done
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
@@ -50,6 +57,11 @@ echo
 echo "Instalando dependências ..."
 python -m pip install --upgrade pip -q
 python -m pip install -r requirements.txt -q
+
+if [[ "$DEV" == true ]] && [[ -f requirements-dev.txt ]]; then
+  echo "Instalando dependências de desenvolvimento ..."
+  python -m pip install -r requirements-dev.txt -q
+fi
 
 mkdir -p data
 

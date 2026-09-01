@@ -7,7 +7,6 @@ from dataclasses import dataclass
 
 from pq.translators.errors import ParseError
 
-
 M_TYPE_TO_SQL: dict[str, str] = {
     "type date": "DATE",
     "type text": "VARCHAR",
@@ -576,6 +575,6 @@ def translate_m_to_sql(
         lines.append(f"){comma}")
 
     last = translated[-1].name
-    lines.append(f"SELECT *")
+    lines.append("SELECT *")
     lines.append(f"FROM {_sql_ref(last)};")
     return "\n".join(lines)

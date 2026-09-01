@@ -1,11 +1,15 @@
 """SQL derivado — colunas calculadas e base de trabalho."""
 
+from __future__ import annotations
+
+from pq.db.sql_utils import quote_ident
+
 
 def work_from_clause(table: str, derived_sql: str | None) -> str:
     """Fragmento para cláusula FROM: tabela DuckDB ou subquery derivada."""
     if derived_sql:
         return f"({derived_sql}) __work__"
-    return f'"{table}"'
+    return quote_ident(table)
 
 
 def build_derived_select(table: str, select_expr: str, derived_sql: str | None) -> str:
@@ -16,7 +20,7 @@ def working_sql(table: str, derived_sql: str | None) -> str:
     """SQL completo da base de trabalho (para export/DESCRIBE)."""
     if derived_sql:
         return derived_sql
-    return f'SELECT * FROM "{table}"'
+    return f"SELECT * FROM {quote_ident(table)}"
 
 
 def default_preview_sql(table: str, derived_sql: str | None, *, limit: int = 100) -> str:

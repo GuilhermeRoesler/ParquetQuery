@@ -1,0 +1,23 @@
+[project]
+name = "parquet-query"
+version = "1.6.5"
+description = "Exploração de arquivos Parquet/CSV com DuckDB e Streamlit"
+readme = "README.md"
+requires-python = ">=3.9"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501"]
+"pq/ui/**" = ["E501"]
+"pq/translators/**" = ["E501", "F841"]
+"pq/overview/sql.py" = ["E501"]
