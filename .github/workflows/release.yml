@@ -1,0 +1,42 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - v*
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extrair versão da tag
+        id: version
+        shell: pwsh
+        run: |
+          $tag = '${{ github.ref_name }}'
+          if ($tag -notmatch '^v(.+)$') {
+            throw "Tag invalida: $tag (esperado formato v1.2.3)"
+          }
+          "value=$($Matches[1])" >> $env:GITHUB_OUTPUT
+
+      - name: Montar pacote portátil Windows
+        shell: pwsh
+        run: |
+          ./scripts/build_portable.ps1 `
+            -Version '${{ steps.version.outputs.value }}' `
+            -RepoUrl 'https://github.com/${{ github.repository }}'
+
+      - name: Publicar no GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+          generate_release_notes: true

@@ -6,6 +6,20 @@ Aplicação **Streamlit** para explorar arquivos **Parquet** e **CSV** com **Duc
 
 ---
 
+## Download (usuário Windows)
+
+Sem Python instalado: baixe o **`.zip` portátil** na [página de Releases](https://github.com/GuilhermeRoesler/ParquetQuery/releases).
+
+1. Extraia o zip (ex.: `ParquetQuery-1.6.5-win64`)
+2. Coloque `.parquet` ou `.csv` na pasta `data\`
+3. Dê duplo clique em **`Iniciar Parquet Query.bat`**
+
+O navegador abre sozinho. Detalhes no `LEIA-ME.txt` dentro do pacote.
+
+> O Windows pode avisar que o app não é assinado — normal em releases open source. Use «Mais informações» → «Executar assim mesmo» se confiar na origem.
+
+---
+
 ## Início rápido
 
 1. Coloque arquivos `.parquet` ou `.csv` na pasta `data/`.
@@ -69,6 +83,14 @@ pre-commit install   # opcional: hooks locais espelhando o CI
 ```
 
 CI (GitHub Actions): Ruff (lint + format), pytest em Python 3.9/3.11/3.12 com cobertura mínima, mypy e `pip-audit`. Dependabot abre PRs semanais de dependências.
+
+### Publicar release (Windows portátil)
+
+1. Atualize `version` em `pyproject.toml` se necessário
+2. Crie e envie uma tag semver: `git tag v1.6.5 && git push origin v1.6.5`
+3. O workflow **Release** gera `ParquetQuery-{versão}-win64.zip` e anexa ao GitHub Release
+
+Build local (Windows): `powershell -File scripts/build_portable.ps1 -Version 1.6.5`
 
 **Documentação:** ao mudar código, atualize `LIVING_SPEC.md` (decisões técnicas) e `README.md` (se user-facing) na mesma sessão — doc e código devem refletir um ao outro.
 

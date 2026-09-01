@@ -22,6 +22,8 @@ Streamlit + DuckDB · dados em `data/` · entrada `.parquet`/`.csv` · saída Pa
 
 Executar: `run.bat` / `run.ps1` / `./run.sh` ou `streamlit run app.py`. Detalhes de launch → README.
 
+Release Windows (usuário leigo): tag `v*` → workflow `.github/workflows/release.yml` → `scripts/build_portable.ps1` empacota Python embeddable 3.11 + deps + app em `dist/ParquetQuery-{versão}-win64.zip`; launcher `Iniciar Parquet Query.bat` na raiz do zip.
+
 Pacote principal: `pq/` (`db`, `ui`, `export`, `storage`, `translators`). Entrada: `app.py`.
 
 Shims legados na raiz (não duplicar lógica): `data_store.py`, `pq_dax_translator.py`, `pq_m_translator.py`.
@@ -133,7 +135,7 @@ Após mudanças: atualizar este spec (e README se user-facing); `python -m pytes
 
 | Tópico | Status |
 |--------|--------|
-| App local single-user | Sem autenticação |
+| App local single-user | Sem autenticação; distribuição Windows via zip portátil (GitHub Releases) |
 | DAX / M | Subconjuntos — não paridade com Power BI |
 | Legacy `input/`/`output/` | Migrados para `data/` na 1ª execução |
 | Testes | 49 pytest; CI: ruff (lint+format), pytest (3.9–3.12, cov≥45%), mypy, pip-audit; pre-commit local |
