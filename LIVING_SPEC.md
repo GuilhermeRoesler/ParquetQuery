@@ -24,7 +24,7 @@ Executar: `run.bat` / `run.ps1` / `./run.sh` ou `streamlit run app.py`. Detalhes
 
 Release Windows (usuário leigo): tag `v*` → workflow `.github/workflows/release.yml` → `scripts/build_portable.ps1` empacota Python embeddable 3.11 + deps + app em `dist/ParquetQuery-{versão}-win64.zip`; launcher `Iniciar Parquet Query.bat` na raiz do zip.
 
-**Modo vitrine (Streamlit Community Cloud):** detecção automática via `STREAMLIT_RUNTIME_ENVIRONMENT=cloud` (ou `PQ_CLOUD_MODE=1` para teste local). Upload na sidebar (`st.file_uploader`, até 50 MB); dataset de exemplo em `demo/`; diretório efêmero por sessão (`pq/storage/cloud.py`); exportação só por download — sem «Salvar em data/». Instalação local inalterada.
+**Modo vitrine (Streamlit Community Cloud):** detecção via `PQ_CLOUD_MODE=1` (teste local), variáveis `STREAMLIT_SHARING` / `STREAMLIT_CLOUD`, ou repo montado em `/mount/src/` (`pq/config.is_cloud_mode`). Upload na sidebar (`st.file_uploader`, até 50 MB); dataset de exemplo em `demo/`; diretório efêmero por sessão (`pq/storage/cloud.py`); exportação só por download — sem «Salvar em data/». Instalação local inalterada.
 
 Pacote principal: `pq/` (`db`, `ui`, `export`, `storage`, `translators`). Entrada: `app.py`.
 

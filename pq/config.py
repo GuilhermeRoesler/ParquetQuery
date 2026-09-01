@@ -18,7 +18,20 @@ def is_cloud_mode() -> bool:
         return True
     if override in ("0", "false", "no"):
         return False
-    return os.environ.get("STREAMLIT_RUNTIME_ENVIRONMENT") == "cloud"
+
+    if os.environ.get("STREAMLIT_RUNTIME_ENVIRONMENT") == "cloud":
+        return True
+    if os.environ.get("STREAMLIT_SHARING") or os.environ.get("STREAMLIT_CLOUD"):
+        return True
+
+    # Community Cloud monta o repositório em /mount/src/<repo>/ (Linux).
+    try:
+        if BASE.resolve().as_posix().startswith("/mount/src/"):
+            return True
+    except OSError:
+        pass
+
+    return False
 
 
 LOADABLE_EXTENSIONS = {".parquet", ".csv"}

@@ -34,6 +34,20 @@ def test_is_cloud_mode_streamlit_runtime() -> None:
         assert is_cloud_mode() is True
 
 
+def test_is_cloud_mode_streamlit_sharing() -> None:
+    with patch.dict("os.environ", {"STREAMLIT_SHARING": "true"}, clear=False):
+        assert is_cloud_mode() is True
+
+
+def test_is_cloud_mode_mount_src(monkeypatch: pytest.MonkeyPatch) -> None:
+    class _RepoRoot:
+        def resolve(self) -> Path:
+            return Path("/mount/src/parquet-query")
+
+    monkeypatch.setattr("pq.config.BASE", _RepoRoot())
+    assert is_cloud_mode() is True
+
+
 def test_sanitize_upload_stem() -> None:
     assert sanitize_upload_stem("vendas.parquet") == "vendas"
     assert sanitize_upload_stem("meu arquivo (1).csv") == "meu_arquivo_1"
