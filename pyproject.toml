@@ -1,6 +1,6 @@
 [project]
 name = "parquet-query"
-version = "1.6.5"
+version = "1.8.0"
 description = "Exploração de arquivos Parquet/CSV com DuckDB e Streamlit"
 readme = "README.md"
 requires-python = ">=3.9"

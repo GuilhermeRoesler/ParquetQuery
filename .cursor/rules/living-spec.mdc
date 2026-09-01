@@ -9,19 +9,20 @@ Antes de implementar ou explicar algo neste projeto, leia **`LIVING_SPEC.md`** n
 
 ## Ao concluir mudanças relevantes
 
-Atualize `LIVING_SPEC.md` na mesma sessão:
+Atualize a documentação na mesma sessão — **sempre alinhada ao código**:
 
-1. `Última atualização` e `Versão do spec`
-2. Seções afetadas (módulos, abas, convenções, dependências)
-3. Nova entrada no **Changelog** (data, o quê, quais arquivos)
+1. **`LIVING_SPEC.md`** — decisões técnicas, arquitetura, convenções (`Última atualização` + seções afetadas)
+2. **`README.md`** — se mudou fluxo do usuário, abas, launch, dev ou troubleshooting
+
+Histórico no git — **não** manter changelog nem versão no spec.
 
 ## Regras rápidas (não substituem o spec)
 
+- Decisões técnicas completas em `LIVING_SPEC.md` (~130 linhas)
 - App Streamlit + DuckDB; dados em `data/` com versionamento `{base}_vN`
-- SQL de trabalho: `working_sql()` / `derived_by_table` em `pq/ui/state.py` e `pq/db/derived.py`
-- DAX: `pq_dax_translator.py` → SQL DuckDB
+- SQL derivado: `derived_by_table` + `work_from` — ver spec
 - Paginação pesada: `paginate_sql`, não DataFrame inteiro
-- Código em português na UI; Python com type hints e `pathlib`
-- Diff mínimo; sem refatoração não solicitada
+- Caches `@st.cache_data`: nunca passar conexão DuckDB como argumento
+- UI em português; diff mínimo; sem refatoração não solicitada
 
 Se o spec e o código divergirem, **corrija o spec** ou o código — nunca deixe os dois inconsistentes.

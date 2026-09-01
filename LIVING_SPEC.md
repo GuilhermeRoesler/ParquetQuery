@@ -1,401 +1,139 @@
-# Parquet Query — Especificação Viva
+# Parquet Query — Spec
 
-> **Última atualização:** 2026-09-01  
-> **Versão do spec:** 1.7.0  
-> **Mantenedor:** IA + desenvolvedor (atualização contínua a cada prompt relevante)
+> **Última atualização:** 2026-09-01
 
----
-
-## Protocolo de manutenção (obrigatório para a IA)
-
-Este arquivo é a **fonte única de verdade** sobre o contexto do projeto. A IA deve:
-
-1. **Ler** `LIVING_SPEC.md` no início de qualquer tarefa não trivial.
-2. **Atualizar** este arquivo ao final de cada sessão que altere comportamento, arquitetura, arquivos ou convenções.
-3. **Registrar** mudanças na seção [Changelog](#changelog) com data, resumo e arquivos tocados.
-4. **Incrementar** `Versão do spec` (patch: correções/docs; minor: features; major: redesign).
-5. **Não duplicar** regras longas em outros lugares — aponte para seções deste arquivo.
-
-Campos a revisar em cada atualização: `Última atualização`, módulos, fluxos, dependências, estado do git conhecido, decisões abertas.
+Spec enxuto para IA e contribuidores. Guia de usuário, CI e detalhes de UI → **[README.md](README.md)**.
 
 ---
 
-## Visão geral
+## Protocolo
 
-**Parquet Query** é uma aplicação **Streamlit** para explorar arquivos Parquet (e derivados) com **DuckDB**, sem carregar datasets inteiros na RAM quando possível. Suporta SQL ad-hoc, colunas calculadas (DuckDB ou DAX do Power BI) e exportação versionada para `data/`.
-
-| Item | Valor |
-|------|-------|
-| Linguagem | Python 3.x |
-| UI | Streamlit (`layout="wide"`) |
-| Engine SQL | DuckDB (conexão singleton por sessão do servidor) |
-| Dados | `data/` (versionado + manifest) |
-| Entrada | `.parquet` e `.csv` em `data/` |
-| Saída | Parquet, CSV, XLSX |
-
-**Executar:** `run.bat` ou `run.ps1` (Windows), `./run.sh` (Linux/macOS) ou, com venv ativo, `streamlit run app.py`
-
-No Windows, `run.bat` apenas delega para `run.ps1` (PowerShell 5.1+).
-
-Os scripts de launch criam/ativam `.venv`, instalam `requirements.txt`, garantem a pasta `data/` e sobem o Streamlit. A porta padrão é `8501` (override: `STREAMLIT_SERVER_PORT`); se estiver ocupada, tentam automaticamente a próxima (`8502`, …) via `find_free_port.py`.
-
-Flag **`--dev`** (`run.sh --dev` ou `run.ps1 -Dev`): instala também `requirements-dev.txt` (pytest, ruff).
+1. Ler este arquivo no início de tarefas não triviais.
+2. Ao alterar comportamento ou arquitetura: atualizar `Última atualização` e as seções afetadas **neste spec**.
+3. Se a mudança for visível ao usuário (abas, fluxo, CLI, troubleshooting): atualizar também **[README.md](README.md)**.
+4. Histórico no git — sem changelog nem versão aqui.
+5. **Documentação e código devem refletir um ao outro** — se divergirem, corrija o doc ou o código na mesma sessão; nunca deixe inconsistente.
 
 ---
 
-## Estrutura do repositório
+## Stack
 
-```
-Parquet Query/
-├── app.py                      # Entrada Streamlit (~55 linhas)
-├── pq/                         # Pacote principal
-│   ├── config.py               # Constantes, caminhos, SQL keywords
-│   ├── db/                     # DuckDB — conexão, schema, derived, cache
-│   ├── export/                 # io.py + query_export.py (COPY/streaming)
-│   ├── overview/               # SQL e formatação pt-BR de overview
-│   ├── storage/                # Versionamento data/ + manifest
-│   ├── translators/            # DAX e M → SQL DuckDB
-│   └── ui/                     # Streamlit — sidebar, abas, componentes
-├── data_store.py               # Shim → pq.storage.data_store
-├── pq_dax_translator.py        # Shim → pq.translators.dax
-├── pq_m_translator.py          # Shim → pq.translators.m
-├── tests/                      # pytest (tradutores, storage, derived, export, sql_utils)
-├── data/                       # Arquivos de dados + _manifest.json
-├── requirements.txt
-├── requirements-dev.txt        # pytest, ruff
-├── pyproject.toml              # config pytest/ruff
-├── README.md                   # início rápido (detalhes em LIVING_SPEC.md)
-├── .github/workflows/ci.yml    # CI: ruff + pytest
-├── find_free_port.py          # Helper: primeira porta TCP livre >= start
-├── run.bat                    # Wrapper → run.ps1
-├── run.ps1                    # Launch Windows (venv, deps, porta, Streamlit)
-├── run.sh
-└── LIVING_SPEC.md
-```
+Streamlit + DuckDB · dados em `data/` · entrada `.parquet`/`.csv` · saída Parquet/CSV/XLSX.
 
-### Responsabilidades por módulo
+Executar: `run.bat` / `run.ps1` / `./run.sh` ou `streamlit run app.py`. Detalhes de launch → README.
 
-| Arquivo / pacote | Papel |
-|---------|--------|
-| `app.py` | Entrada fina: `main()`, orquestra sidebar + abas |
-| `pq/config.py` | `DATA_DIR`, `CAST_TYPES`, `LIMITE_XLSX`, keywords SQL |
-| `pq/db/` | Conexão DuckDB, views, schema, SQL derivado, queries paginadas |
-| `pq/db/sql_utils.py` | `strip_sql`, `quote_ident`, `validate_derived_sql` |
-| `pq/export/` | `export_to_bytes`, `save_to_data`; `query_export` (COPY/streaming) |
-| `pq/overview/` | SQL de overview, `format_number_pt` |
-| `pq/storage/data_store.py` | Nomenclatura `{base}_v{N}`, timeline, `_manifest.json`, migração legacy |
-| `pq/translators/dax.py` | Tokenizer/parser DAX → SQL DuckDB |
-| `pq/translators/m.py` | Passos M → SQL DuckDB com CTEs |
-| `pq/ui/context.py` | `WorkContext` — dataclass compartilhada entre abas |
-| `pq/ui/state.py` | Session state, `set_derived_sql`, execução SQL |
-| `pq/ui/sidebar.py` | Carregamento de arquivos e tabela ativa |
-| `pq/ui/tabs/` | Uma aba por arquivo (`explore`, `sql_tab`, `columns`, `export_tab`) |
-| `pq/ui/components/` | Paginação, editor SQL (autocomplete, CSS) |
+Pacote principal: `pq/` (`db`, `ui`, `export`, `storage`, `translators`). Entrada: `app.py`.
+
+Shims legados na raiz (não duplicar lógica): `data_store.py`, `pq_dax_translator.py`, `pq_m_translator.py`.
 
 ---
 
-## Arquitetura
+## Fluxo de dados
 
-```mermaid
-flowchart LR
-    subgraph UI [pq/ui]
-        Sidebar[sidebar.py]
-        Tabs[tabs/*.py]
-        Ctx[WorkContext]
-    end
-    subgraph Engine [pq/db]
-        Views[Views por arquivo]
-        SQL[Queries DuckDB]
-    end
-    subgraph Storage [pq/storage]
-        Parquet[*.parquet / csv / xlsx]
-        Manifest[_manifest.json]
-    end
-    Sidebar -->|register_view| Views
-    Tabs --> SQL
-    SQL --> Views
-    Views --> Parquet
-    Tabs -->|export / save| Parquet
-    Parquet --> Manifest
-    Ctx --> Tabs
-```
+Sidebar carrega arquivos → `register_view(stem, path)` cria view DuckDB. Aba **Colunas** empilha transformações em `derived_by_table`. Abas consultam via `work_from(table)`. **Exportar** grava `{base}_vN.ext` e atualiza `_manifest.json`.
 
-### Fluxo de dados
+1. Arquivo em `data/` → view `"stem"` via `read_parquet` / `read_csv_auto`
+2. Sem transformações: `FROM "stem"`
+3. Com colunas calculadas: `FROM (derived_sql) __work__`
+4. Export → `record_version` + `save_manifest`
 
-1. Usuário marca arquivos (`.parquet` / `.csv`) na sidebar → `register_view(stem, path)` cria view DuckDB (`read_parquet` ou `read_csv_auto`).
-2. Tabela ativa usa `work_from(table)` — `"tabela"` ou `({sql_derivado}) __work__` quando há colunas calculadas.
-3. Transformações na aba **Colunas** empilham via `build_derived_select` em `derived_by_table`.
-4. Export grava em `data/{base}_v{N}.{ext}` e atualiza manifest via `record_version`.
+Cada rerun Streamlit: `init_state` → `get_connection` → `render_sidebar` → `build_work_context` → 4 abas com `WorkContext` compartilhado. Troca de tabela ou derived SQL reseta o editor (`sql_editor_ctx` em `pq/ui/app_context.py`).
 
 ---
 
-## Modelo de versionamento (`data/`)
+## Decisões técnicas
+
+### SQL derivado
+
+Transformações **não** alteram o Parquet — acumulam SELECT em `st.session_state.derived_by_table[table]`.
+
+| Onde | Função |
+|------|--------|
+| `pq/db/derived.py` | `work_from_clause`, `build_derived_select`, `working_sql` |
+| `pq/ui/state.py` | Wrappers (`work_from`, `set_derived_sql`, …) + session state |
+| `pq/db/sql_utils.py` | `validate_derived_sql` — executar **antes** de aplicar |
+
+Aliases fixos: `__work__` (base de trabalho), `__validate__` (validação), `__q__` (paginação).
+
+### Paginação
+
+Dataset grande → **`paginate_sql`** (COUNT cacheado em session state + LIMIT/OFFSET no DuckDB).
+
+DataFrame pequeno já em RAM → `paginate`. Invalidar COUNT: `clear_sql_count_cache()` ao mudar derived SQL ou recarregar tabelas.
+
+### Caches Streamlit
+
+`get_connection` → `@st.cache_resource`. Schema e overview → `@st.cache_data` (ttl 300s).
+
+**Nunca** passar `DuckDBPyConnection` como argumento de `@st.cache_data` — usar `get_connection()` no corpo.
+
+Invalidação: `get_schema.clear()`, `clear_overview_cache()`, `clear_sql_count_cache()`.
+
+### Export
+
+`pq/export/query_export.py`: Parquet/CSV via DuckDB `COPY`; XLSX em chunks (`fetch_df_chunk`, 10k linhas).
+
+Limite XLSX: `LIMITE_XLSX = 1_048_576`. Destinos via `safe_data_path` (anti-traversal).
+
+### Versionamento (`data/`)
 
 | Conceito | Regra |
 |----------|-------|
-| Original | `{base}.parquet` (sem sufixo `_vN`) → versão lógica `0` / label `original` |
-| Versões | `{base}_v1.parquet`, `{base}_v2.parquet`, ... |
-| Manifest | `data/_manifest.json` — metadados por base/versão (formato, origem, timestamps) |
-| Timeline | `build_timeline(data_dir, base)` — original + todas as `_vN` |
+| Original | `{base}.parquet` → versão lógica `0` |
+| Exportações | `{base}_v1`, `{base}_v2`, … |
+| Metadados | `data/_manifest.json` (`bases → versions → file, format, …`) |
 
-Funções-chave em `data_store.py`: `base_name_from`, `version_from_stem`, `versioned_stem`, `next_available_version`, `record_version`, `migrate_legacy_dirs`.
+Manifest corrompido: `load_manifest` retorna fallback + aviso na UI; `save_manifest` limpa flags `_corrupt`.
 
----
+Funções: `pq/storage/data_store.py` — `base_name_from`, `record_version`, `build_timeline`, `migrate_legacy_dirs`.
 
-## Interface (abas)
+### Session state (chaves principais)
 
-| # | Aba | Função |
-|---|-----|--------|
-| 1 | Explorar | Schema, preview paginado, overview de valores (classificatório ou numérico) |
-| 2 | SQL | Editor DuckDB com autocomplete; tradutor Power Query (M); paginação server-side para SELECT/WITH |
-| 3 | Colunas | Coluna calculada (DuckDB ou DAX), renomear, remover, TRY_CAST |
-| 4 | Exportar | Download ou salvar em `data/`; nova versão ou sobrescrever; timeline |
+`loaded_tables`, `derived_by_table`, `last_result_sql`, `sql_editor` / `sql_editor_ctx`, `sql_last_submit_id`, `pg_{key}`, `sql_cnt_*`.
 
-### Session state (`app.py`)
+Definido em `pq/ui/state.py`; `init_state()` só inicializa defaults — `active_table` vem da sidebar.
 
-| Chave | Uso |
-|-------|-----|
-| `loaded_tables` | Lista de stems carregados |
-| `derived_by_table` | `{table: sql_derivado}` |
-| `last_result_sql` | Último SQL executado na aba SQL |
-| `sql_editor` | Dict do componente `code_editor` (`text`, cursor, etc.) |
-| `sql_editor_ctx` | `{tabela}:raw` ou `:derived` — troca reseta o editor |
-| `sql_last_submit_id` | Último `id` de Ctrl+Enter processado (evita reexecução) |
-| `active_table` | Via `selectbox` na sidebar |
+### Tradutores
 
-Caches Streamlit: `get_connection` (`@st.cache_resource`); schema/overview (`@st.cache_data`, ttl=300) — **não** passam a conexão DuckDB como argumento (não serializável); usam `get_connection()` no corpo da função.
+- **DAX** (`pq/translators/dax.py`): parcial; `'Tabela'[Col]` → `"Col"`; identificador desconhecido → `ParseError`. Funções suportadas: ver `_Parser._translate_call`.
+- **M** (`pq/translators/m.py`): passos `Table.SelectRows`, `TransformColumnTypes`, `RemoveColumns`, `SelectColumns`; parâmetros via CTE `params`. Sem joins/pivots.
 
-### Overview de valores (Explorar)
-
-Radio **Classificatório** / **Numérico** (escolha manual):
-
-| Modo | Controles | Resultado |
-|------|-----------|-----------|
-| **Classificatório** | Coluna | Frequências por valor (`GROUP BY`), tabela paginada |
-| **Numérico** | Coluna + agregação (MIN, MAX, SUM, AVG) | Um único valor formatado pt-BR (`.` milhar, `,` decimal) |
-
-VARCHAR no modo numérico usa `TRY_CAST(TRIM(col) AS DOUBLE)`. Helper: `format_number_pt`.
+Erros compartilhados: `ParseError` em `pq/translators/errors.py`.
 
 ---
 
-## Tradutor M (`pq/translators/m.py`)
+## Onde editar
 
-- Entrada: passos M encadeados (`#"Nome" = Table....,`).
-- Suportado: `Table.SelectRows`, `Table.TransformColumnTypes`, `Table.RemoveColumns`, `Table.SelectColumns`.
-- Parâmetros M: definidos no script (`Nome = #date(...)`) ou inferidos em predicados `each`; CTE `params` genérica.
-- `table_map` renomeia tabela de origem M para view DuckDB carregada.
-- API: `translate_m_to_sql`, `m_source_table`, `m_parameter_names`, `m_parameter_defaults`, `parse_m_script`; erros: `ParseError`.
+| Tarefa | Onde |
+|--------|------|
+| Nova aba / UI | `pq/ui/tabs/` — manter `WorkContext`, helpers de `pq/ui/state.py` |
+| Sidebar / carregar arquivos | `pq/ui/sidebar.py` |
+| SQL derivado / preview | `pq/db/derived.py`, `pq/ui/state.py` |
+| Paginação | `pq/ui/components/pagination.py` |
+| Export / save | `pq/export/query_export.py`, `pq/storage/data_store.py` |
+| Nova função DAX | `pq/translators/dax.py` → `_Parser._translate_call` |
+| Novo passo M | `pq/translators/m.py` → `_translate_step` |
+| Novo formato de arquivo | `pq/config.LOADABLE_EXTENSIONS`, `pq/db/connection.duckdb_read_expr`, `pq/export/io` |
+| Overview / formatação pt-BR | `pq/overview/` |
 
----
-
-## Tradutor DAX (`pq/translators/dax.py`)
-
-- Entrada: `Nome da Coluna = expressão` (formato Power BI).
-- `normalize_power_formula` limpa referências `'Tabela'[Coluna]` → colunas da view atual.
-- Suporte parcial: IF, VAR/RETURN, comentários `--`/`//`, SUBSTITUTE, FIND, SEARCH, TRIM, LEFT, FORMAT, TODAY, `.[Date]`, `.[Year]`, operadores, strings.
-- Erros: `ParseError` em `pq/translators/errors.py` (compartilhado DAX/M).
-- API pública: `translate_power_column`, `translate_dax_expression`, `normalize_power_formula`.
+Após mudanças: atualizar este spec (e README se user-facing); `python -m pytest tests/ -q` e `python -m ruff check .`.
 
 ---
 
-## Convenções de código
+## Convenções
 
-- Python com `from __future__ import annotations`.
-- Paths via `pathlib.Path`; identificadores SQL via `quote_ident()` em `pq/db/sql_utils.py`.
-- Subqueries derivadas: `work_from()` → `"coluna"` ou `({derived}) __work__`; validação com `validate_derived_sql()` antes de aplicar transformações.
-- Paginação pesada: `paginate_sql` (COUNT cacheado em session state + LIMIT/OFFSET no DuckDB), não `paginate` em DataFrame grande.
-- UI de paginação: `show_paginated_dataframe` + `render_pagination_bar` — `st.container(horizontal=True)` com botões ◀/▶ colados ao texto, centralizado abaixo da tabela; estado em `pg_{key}`.
-- Limite XLSX: `LIMITE_XLSX = 1_048_576` (limite do Excel).
-- UI em português; mensagens de erro amigáveis via `st.error` / `st.warning`.
-- **Escopo mínimo:** alterações focadas; não refatorar sem pedido; seguir estilo existente.
+- `from __future__ import annotations`; paths com `pathlib.Path`
+- Identificadores SQL: `quote_ident()`; SQL final: `strip_sql()` (remove `;` trailing)
+- UI em português; type hints; diff mínimo; sem refatoração não solicitada
+- Lint: ruff (E, F, I, UP), linha máx. 100
 
 ---
 
-## Dependências (`requirements.txt`)
-
-```
-pandas>=2.0
-pyarrow>=14.0
-openpyxl>=3.1
-duckdb>=1.0
-streamlit>=1.35
-streamlit-code-editor>=0.1.22
-```
-
-Dev: `requirements-dev.txt` (`pytest>=8.0`, `ruff>=0.8.0`). Executar testes: `python -m pytest tests/`; lint: `python -m ruff check .`
-
----
-
-## Estado conhecido / decisões
+## Estado conhecido
 
 | Tópico | Status |
 |--------|--------|
-| `utils/parquet_to_csv.py`, `utils/parquet_to_xlsx.py` | Marcados como deletados no git (D no status); scripts standalone de conversão |
-| Diretórios legacy `input/`, `output/` | Migrados automaticamente para `data/` na primeira execução |
-| Testes automatizados | `tests/` — pytest (~29 testes); CI GitHub Actions |
-| Export grande | Parquet/CSV via DuckDB `COPY`; XLSX em chunks (`fetch_df_chunk`) |
-| Manifest corrompido | `load_manifest` retorna fallback + aviso na UI; `save_manifest` limpa flags `_corrupt` |
-| Autenticação / multi-usuário | Não aplicável (app local) |
-
----
-
-## Tarefas comuns para a IA
-
-- **Nova feature na UI:** editar módulo em `pq/ui/tabs/`; manter `WorkContext`; usar helpers de `pq/ui/state.py`.
-- **Versionamento/export:** usar `pq.storage.record_version` + `pq.export.save_to_data`.
-- **Nova função DAX:** estender `pq/translators/dax.py` (`_Parser`, mapeamentos de funções).
-- **Novo formato de arquivo:** atualizar `pq/config.LOADABLE_EXTENSIONS`, `pq/db/connection.duckdb_read_expr`, `pq/export/io`.
-
----
-
-## Changelog
-
-### 2026-09-01 — v1.7.0 (auditoria: robustez, performance, DX)
-
-- **SQL:** `quote_ident`, `validate_derived_sql`; renomear/remover colunas validam antes de aplicar.
-- **Export:** `pq/export/query_export.py` — Parquet/CSV via DuckDB COPY; XLSX em chunks; `safe_data_path` anti-traversal.
-- **Overview classificatório:** paginação server-side (`paginate_sql`); resumo via `get_classificatory_overview_summary`.
-- **Paginação:** cache de `COUNT(*)` em session state; `clear_sql_count_cache` ao mudar derived SQL.
-- **Manifest:** fallback se `_manifest.json` corrompido; aviso na sidebar/export.
-- **DAX:** identificador desconhecido → `ParseError` (não passa cru para SQL).
-- **Limpeza:** removidos `fetch_sql_page`, `count_rows`, `get_classificatory_overview` (RAM).
-- **DX:** `README.md`, `pyproject.toml`, CI (ruff + pytest), `run.sh --dev` / `run.ps1 -Dev`.
-- **Testes:** +14 (sql_utils, manifest, query_export, DAX unknown ident).
-- Arquivos: `pq/**`, `tests/**`, `run.ps1`, `run.sh`, `README.md`, `pyproject.toml`, `.github/workflows/ci.yml`, `.cursor/rules/living-spec.mdc`, `LIVING_SPEC.md`.
-
-### 2026-09-01 — v1.6.1 (fix crash ao carregar tabelas)
-
-- Corrigido crash do servidor ao carregar tabelas: funções `@st.cache_data` não recebem mais `DuckDBPyConnection` como parâmetro (objeto não hashable); usam `get_connection()` internamente.
-- Sidebar: `st.rerun()` após carregar arquivos selecionados.
-- Arquivos: `pq/db/schema.py`, `pq/db/cached.py`, `pq/ui/app_context.py`, `pq/ui/tabs/explore.py`, `pq/ui/sidebar.py`, `LIVING_SPEC.md`.
-
-### 2026-09-01 — v1.6.0 (reorganização em pacote `pq/`)
-
-- Refatoração: `app.py` reduzido a entrada fina; lógica dividida em `pq/db`, `pq/ui`, `pq/export`, `pq/overview`, `pq/storage`, `pq/translators`.
-- UI: `WorkContext`, sidebar e uma aba por módulo em `pq/ui/tabs/`.
-- `ParseError` unificado em `pq/translators/errors.py`.
-- Shims de compatibilidade: `data_store.py`, `pq_dax_translator.py`, `pq_m_translator.py`.
-- Testes: `tests/` com pytest (15 testes); `requirements-dev.txt`.
-- Arquivos: estrutura `pq/**`, `app.py`, `tests/**`, `LIVING_SPEC.md`.
-
-### 2026-06-17 — v1.5.1 (parâmetros M genéricos)
-
-- Tradutor M: parâmetros detectados automaticamente (definições `#date` / literais ou uso em `each`); UI dinâmica; removidos defaults fixos RangeStart/RangeEnd.
-- API: `m_parameter_names`, `m_parameter_defaults`, `parse_m_script`.
-- Arquivos: `pq_m_translator.py`, `app.py`, `LIVING_SPEC.md`.
-
-### 2026-06-17 — v1.5.0 (tradutor Power Query M)
-
-- Novo `pq_m_translator.py`: converte passos M comuns em SQL DuckDB (CTEs, params de data, filtros, casts, colunas).
-- Aba SQL: expander «Tradutor Power Query (M)» com conversão e «Usar no editor».
-- Arquivos: `pq_m_translator.py`, `app.py`, `LIVING_SPEC.md`.
-
-### 2026-06-17 — v1.4.3 (Ctrl+Enter executar SQL)
-
-- Aba SQL: **Ctrl+Enter** dispara execução via comando `submit` nativo do `code_editor`.
-- Helpers `execute_sql_input`, `sql_editor_run_requested`; deduplicação por `sql_last_submit_id`.
-- Arquivos: `app.py`, `LIVING_SPEC.md`.
-
-### 2026-06-17 — v1.4.2 (layout autocomplete SQL)
-
-- Corrigido popup de sugestões cortado: `overflow: visible`, padding inferior no iframe do `code_editor`, CSS nas abas Streamlit.
-- Editor SQL reposicionado acima da referência; altura 14–22 linhas; navegação por teclado documentada na caption.
-- Arquivos: `app.py`, `LIVING_SPEC.md`.
-
-### 2026-06-17 — v1.4.1 (autocomplete SQL nível A)
-
-- Aba SQL: `st.text_area` substituído por `streamlit-code-editor` com sugestões fixas (tabelas carregadas, colunas, keywords SQL, funções DuckDB comuns).
-- Novos helpers: `table_column_names`, `build_sql_completions`; constantes `SQL_KEYWORDS`, `DUCKDB_FUNCTIONS`.
-- Arquivos: `app.py`, `requirements.txt`, `LIVING_SPEC.md`.
-
-### 2026-06-16 — v1.4.0 (remoção Filtros e Agrupar)
-
-- Removidas abas **Filtros** e **Agrupar**; app passa a ter 4 abas (Explorar, SQL, Colunas, Exportar).
-- Removidos `filters` do session state, `AGGS`, `get_distinct_values`.
-- Exportar: opção renomeada para «Último resultado (SQL)».
-- Arquivos: `app.py`, `LIVING_SPEC.md`.
-
-### 2026-06-16 — v1.3.7 (overview manual classificatório/numérico)
-
-- Removida detecção automática de tipo no overview; radio alterna Classificatório vs Numérico.
-- Modo numérico: selectbox de agregação (MIN/MAX/SUM/AVG) e um valor exibido com `format_number_pt` (`.` milhar, `,` decimal).
-- Arquivos: `app.py`, `LIVING_SPEC.md`.
-
-### 2026-06-16 — v1.3.6 (overview classificatório vs numérico)
-
-- Overview de valores na aba Explorar detecta automaticamente colunas classificatórias vs numéricas/datas.
-- VARCHAR com apenas valores numéricos (ex.: IDs) é tratado como numérico via `TRY_CAST`.
-- Novos helpers: `column_type_category`, `resolve_overview_kind`, `_overview_value_expr`.
-- Arquivos: `app.py`, `LIVING_SPEC.md`.
-
-### 2026-06-16 — v1.3.5 (paginação inline)
-
-- Barra de paginação usa `st.container(horizontal=True)` — botões adjacentes ao texto, sem colunas extras.
-- Arquivos: `app.py`, `LIVING_SPEC.md`.
-
-### 2026-06-16 — v1.3.4 (paginação centralizada)
-
-- Barra de paginação compacta (`gap="small"`, botões sem largura total) e centralizada horizontalmente.
-- Arquivos: `app.py`, `LIVING_SPEC.md`.
-
-### 2026-06-16 — v1.3.3 (paginação compacta)
-
-- Substituído `st.number_input` por barra compacta com botões ◀/▶ abaixo das tabelas paginadas.
-- Novos helpers: `PageInfo`, `render_pagination_bar`, `show_paginated_dataframe`.
-- Arquivos: `app.py`, `LIVING_SPEC.md`.
-
-### 2026-06-16 — v1.3.2 (remoção SUMMARIZE)
-
-- Removidas funções mortas `get_summarize` e `get_summarize_for` e limpezas de cache associadas.
-- Arquivos: `app.py`, `LIVING_SPEC.md`.
-
-### 2026-06-16 — v1.3.1 (Explorar: subabas)
-
-- Removida subaba **Estatísticas** (`SUMMARIZE`) da aba Explorar.
-- Ordem das subabas: Schema → Preview → Overview de valores.
-- Arquivos: `app.py`, `LIVING_SPEC.md`.
-
-### 2026-06-16 — v1.3.0 (SQL simplificado + work_from)
-
-- Queries padrão usam `SELECT * FROM "tabela" LIMIT 100` sem subquery redundante.
-- `work_from()` / `build_derived_select()` unificam base de trabalho; subquery `__work__` só com colunas calculadas.
-- Editor SQL reseta ao trocar tabela ou transformações; `strip_sql` remove `;` final (evita erro na paginação).
-- Arquivos: `app.py`, `LIVING_SPEC.md`.
-
-### 2026-06-16 — v1.2.0 (DAX: strings, VAR, comentários)
-
-- Tradutor DAX: `VAR`/`RETURN`, comentários `--`/`//`, `SUBSTITUTE`, `FIND`, `SEARCH`, `TRIM`.
-- `normalize_power_formula` remove comentários antes de colapsar espaços.
-- Arquivos: `pq_dax_translator.py`, `app.py`, `LIVING_SPEC.md`.
-
-### 2026-06-16 — v1.1.0 (entrada CSV)
-
-- Sidebar e `register_view` passam a aceitar arquivos `.csv` em `data/` via `read_csv_auto` do DuckDB.
-- UI atualizada (mensagens, rótulo de formato na lista, export “arquivo original”).
-- Arquivos: `app.py`, `LIVING_SPEC.md`.
-
-### 2026-06-16 — v1.0.0 (criação do spec)
-
-- Criado `LIVING_SPEC.md` como especificação viva inicial do projeto.
-- Documentados: arquitetura Streamlit+DuckDB, versionamento em `data/`, 6 abas, session state, tradutor DAX, convenções.
-- Estado git: `utils/parquet_to_csv.py` e `utils/parquet_to_xlsx.py` com status deletado.
-
-### 2026-09-01 — v1.6.4 (run.ps1 no Windows)
-
-- Lógica do launcher Windows migrada para `run.ps1`; `run.bat` permanece como atalho que invoca o script PowerShell.
-- Arquivos: `run.ps1`, `run.bat`, `LIVING_SPEC.md`.
-
-### 2026-09-01 — v1.6.3 (porta livre automática)
-
-- `find_free_port.py`: detecta primeira porta livre em `127.0.0.1` a partir de `8501` (ou `STREAMLIT_SERVER_PORT`).
-- `run.bat` / `run.sh`: avisam quando a porta pedida está ocupada e usam a próxima disponível.
-- Arquivos: `find_free_port.py`, `run.bat`, `run.sh`, `LIVING_SPEC.md`.
-
-### 2026-09-01 — v1.6.2 (scripts de launch)
-
-- `run.bat` reescrito: verifica Python 3.9+, cria `.venv`, instala dependências, cria `data/` e inicia Streamlit.
-- Novo `run.sh` equivalente para Linux/macOS.
-- `.venv/` adicionado ao `.gitignore`.
-- Arquivos: `run.bat`, `run.sh`, `.gitignore`, `LIVING_SPEC.md`.
-
-<!-- Adicione novas entradas acima desta linha, mais recentes primeiro -->
+| App local single-user | Sem autenticação |
+| DAX / M | Subconjuntos — não paridade com Power BI |
+| Legacy `input/`/`output/` | Migrados para `data/` na 1ª execução |
+| Testes | 29 pytest; CI: ruff + pytest em push/PR |
