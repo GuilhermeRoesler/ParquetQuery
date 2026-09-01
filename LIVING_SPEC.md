@@ -1,7 +1,7 @@
 # Parquet Query — Especificação Viva
 
 > **Última atualização:** 2026-09-01  
-> **Versão do spec:** 1.6.1  
+> **Versão do spec:** 1.6.4  
 > **Mantenedor:** IA + desenvolvedor (atualização contínua a cada prompt relevante)
 
 ---
@@ -33,7 +33,11 @@ Campos a revisar em cada atualização: `Última atualização`, módulos, fluxo
 | Entrada | `.parquet` e `.csv` em `data/` |
 | Saída | Parquet, CSV, XLSX |
 
-**Executar:** `streamlit run app.py` ou `run.bat`
+**Executar:** `run.bat` ou `run.ps1` (Windows), `./run.sh` (Linux/macOS) ou, com venv ativo, `streamlit run app.py`
+
+No Windows, `run.bat` apenas delega para `run.ps1` (PowerShell 5.1+).
+
+Os scripts de launch criam/ativam `.venv`, instalam `requirements.txt`, garantem a pasta `data/` e sobem o Streamlit. A porta padrão é `8501` (override: `STREAMLIT_SERVER_PORT`); se estiver ocupada, tentam automaticamente a próxima (`8502`, …) via `find_free_port.py`.
 
 ---
 
@@ -57,7 +61,10 @@ Parquet Query/
 ├── data/                       # Arquivos de dados + _manifest.json
 ├── requirements.txt
 ├── requirements-dev.txt        # pytest
-├── run.bat
+├── find_free_port.py          # Helper: primeira porta TCP livre >= start
+├── run.bat                    # Wrapper → run.ps1
+├── run.ps1                    # Launch Windows (venv, deps, porta, Streamlit)
+├── run.sh
 └── LIVING_SPEC.md
 ```
 
@@ -351,5 +358,23 @@ Dev: `requirements-dev.txt` (`pytest>=8.0`). Executar testes: `python -m pytest 
 - Criado `LIVING_SPEC.md` como especificação viva inicial do projeto.
 - Documentados: arquitetura Streamlit+DuckDB, versionamento em `data/`, 6 abas, session state, tradutor DAX, convenções.
 - Estado git: `utils/parquet_to_csv.py` e `utils/parquet_to_xlsx.py` com status deletado.
+
+### 2026-09-01 — v1.6.4 (run.ps1 no Windows)
+
+- Lógica do launcher Windows migrada para `run.ps1`; `run.bat` permanece como atalho que invoca o script PowerShell.
+- Arquivos: `run.ps1`, `run.bat`, `LIVING_SPEC.md`.
+
+### 2026-09-01 — v1.6.3 (porta livre automática)
+
+- `find_free_port.py`: detecta primeira porta livre em `127.0.0.1` a partir de `8501` (ou `STREAMLIT_SERVER_PORT`).
+- `run.bat` / `run.sh`: avisam quando a porta pedida está ocupada e usam a próxima disponível.
+- Arquivos: `find_free_port.py`, `run.bat`, `run.sh`, `LIVING_SPEC.md`.
+
+### 2026-09-01 — v1.6.2 (scripts de launch)
+
+- `run.bat` reescrito: verifica Python 3.9+, cria `.venv`, instala dependências, cria `data/` e inicia Streamlit.
+- Novo `run.sh` equivalente para Linux/macOS.
+- `.venv/` adicionado ao `.gitignore`.
+- Arquivos: `run.bat`, `run.sh`, `.gitignore`, `LIVING_SPEC.md`.
 
 <!-- Adicione novas entradas acima desta linha, mais recentes primeiro -->
