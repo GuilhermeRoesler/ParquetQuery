@@ -32,12 +32,7 @@ def format_number_pt(value: object, *, max_decimals: int = 6) -> str:
     if isinstance(value, date):
         return value.strftime("%d/%m/%Y")
 
-    if isinstance(value, (int, float)):
-        num = float(value)
-    elif isinstance(value, str):
-        num = float(value)
-    else:
-        num = float(str(value))
+    num = float(value) if isinstance(value, (int, float, str)) else float(str(value))
     if num == int(num) and abs(num) < 1e18:
         return _format_int_pt(int(num))
 
