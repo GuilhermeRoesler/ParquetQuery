@@ -59,7 +59,7 @@ def render_pagination_bar(key: str, info: PageInfo) -> None:
 
 
 def show_paginated_dataframe(df: pd.DataFrame, info: PageInfo, key: str) -> None:
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width="stretch", hide_index=True)
     render_pagination_bar(key, info)
 
 

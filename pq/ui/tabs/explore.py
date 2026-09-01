@@ -22,10 +22,10 @@ def render_explore_tab(ctx: WorkContext) -> None:
     )
 
     with subtab_schema:
-        st.dataframe(ctx.work_schema_df, use_container_width=True, hide_index=True)
+        st.dataframe(ctx.work_schema_df, width="stretch", hide_index=True)
         if ctx.has_derived:
             with st.expander("Schema original do arquivo"):
-                st.dataframe(ctx.schema_df, use_container_width=True, hide_index=True)
+                st.dataframe(ctx.schema_df, width="stretch", hide_index=True)
 
     with subtab_preview:
         preview_cols = st.multiselect(

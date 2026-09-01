@@ -71,7 +71,7 @@ def render_export_tab(ctx: WorkContext) -> None:
                         ].replace("T", " "),
                     }
                 )
-            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
         else:
             st.info("Nenhuma versão registrada ainda. A primeira exportação será `_v1`.")
 
