@@ -26,7 +26,14 @@ from pq.ui.context import WorkContext
 
 def render_export_tab(ctx: WorkContext) -> None:
     st.header("Exportar")
-    st.caption(f"Base de dados: `{ctx.current_base}` · destino padrão: `data/`")
+    if ctx.cloud_mode:
+        st.caption(f"Base de dados: `{ctx.current_base}` · download na versão online")
+        st.info(
+            "Na demo online, exporte pelo botão **Baixar arquivo**. "
+            "Salvar em `data/` com versionamento está disponível na instalação local."
+        )
+    else:
+        st.caption(f"Base de dados: `{ctx.current_base}` · destino padrão: `data/`")
 
     manifest = load_manifest(ctx.data_dir)
     if manifest_is_corrupt(manifest):
@@ -154,11 +161,14 @@ def render_export_tab(ctx: WorkContext) -> None:
         st.error(str(exc))
         st.stop()
 
-    st.caption(f"Destino: `{dest_path}`")
+    download_clicked = False
+    if ctx.cloud_mode:
+        download_clicked = st.button("Baixar arquivo", type="primary", key="btn_download")
+    else:
+        col_dl, col_save = st.columns(2)
+        download_clicked = col_dl.button("Baixar arquivo", type="primary", key="btn_download")
 
-    col_dl, col_save = st.columns(2)
-
-    if col_dl.button("Baixar arquivo", type="primary", key="btn_download"):
+    if download_clicked:
         try:
             with st.spinner("Preparando arquivo..."):
                 data, mime, export_result = export_query_to_bytes(ctx.con, export_sql, export_fmt)
@@ -179,42 +189,46 @@ def render_export_tab(ctx: WorkContext) -> None:
         except Exception as exc:
             st.error(f"Erro ao exportar: {exc}")
 
-    if col_save.button("Salvar em data/", key="btn_save_data"):
-        try:
-            with st.spinner("Salvando..."):
-                if overwrite:
-                    for old_file in files_for_version(
-                        ctx.data_dir, ctx.current_base, export_version
+    if not ctx.cloud_mode:
+        st.caption(f"Destino: `{dest_path}`")
+        if col_save.button("Salvar em data/", key="btn_save_data"):
+            try:
+                with st.spinner("Salvando..."):
+                    if overwrite:
+                        for old_file in files_for_version(
+                            ctx.data_dir, ctx.current_base, export_version
+                        ):
+                            if old_file != dest_path:
+                                old_file.unlink()
+
+                    export_result = export_query_to_path(ctx.con, export_sql, dest_path, export_fmt)
+                    if export_result.truncated:
+                        st.warning(
+                            f"Exportado com limite de {export_result.row_count:,} linhas (máximo Excel)."
+                        )
+
+                    record_version(
+                        ctx.data_dir,
+                        ctx.current_base,
+                        export_version,
+                        filename=dest_path.name,
+                        fmt=export_fmt,
+                        source_table=ctx.active,
+                        export_source=export_source,
+                        overwrite=overwrite,
+                    )
+                    st.success(
+                        f"Versão salva em `{dest_path}` ({export_result.row_count:,} linhas)"
+                    )
+                    if (
+                        dest_path.suffix.lower() in LOADABLE_EXTENSIONS
+                        and dest_path.stem not in st.session_state.loaded_tables
                     ):
-                        if old_file != dest_path:
-                            old_file.unlink()
-
-                export_result = export_query_to_path(ctx.con, export_sql, dest_path, export_fmt)
-                if export_result.truncated:
-                    st.warning(
-                        f"Exportado com limite de {export_result.row_count:,} linhas (máximo Excel)."
-                    )
-
-                record_version(
-                    ctx.data_dir,
-                    ctx.current_base,
-                    export_version,
-                    filename=dest_path.name,
-                    fmt=export_fmt,
-                    source_table=ctx.active,
-                    export_source=export_source,
-                    overwrite=overwrite,
-                )
-                st.success(f"Versão salva em `{dest_path}` ({export_result.row_count:,} linhas)")
-                if (
-                    dest_path.suffix.lower() in LOADABLE_EXTENSIONS
-                    and dest_path.stem not in st.session_state.loaded_tables
-                ):
-                    st.caption(
-                        "Recarregue o arquivo na barra lateral para trabalhar com esta versão."
-                    )
-                st.rerun()
-        except ValueError as exc:
-            st.error(str(exc))
-        except Exception as exc:
-            st.error(f"Erro ao salvar: {exc}")
+                        st.caption(
+                            "Recarregue o arquivo na barra lateral para trabalhar com esta versão."
+                        )
+                    st.rerun()
+            except ValueError as exc:
+                st.error(str(exc))
+            except Exception as exc:
+                st.error(f"Erro ao salvar: {exc}")

@@ -24,6 +24,8 @@ Executar: `run.bat` / `run.ps1` / `./run.sh` ou `streamlit run app.py`. Detalhes
 
 Release Windows (usuário leigo): tag `v*` → workflow `.github/workflows/release.yml` → `scripts/build_portable.ps1` empacota Python embeddable 3.11 + deps + app em `dist/ParquetQuery-{versão}-win64.zip`; launcher `Iniciar Parquet Query.bat` na raiz do zip.
 
+**Modo vitrine (Streamlit Community Cloud):** detecção automática via `STREAMLIT_RUNTIME_ENVIRONMENT=cloud` (ou `PQ_CLOUD_MODE=1` para teste local). Upload na sidebar (`st.file_uploader`, até 50 MB); dataset de exemplo em `demo/`; diretório efêmero por sessão (`pq/storage/cloud.py`); exportação só por download — sem «Salvar em data/». Instalação local inalterada.
+
 Pacote principal: `pq/` (`db`, `ui`, `export`, `storage`, `translators`). Entrada: `app.py`.
 
 Shims legados na raiz (não duplicar lógica): `data_store.py`, `pq_dax_translator.py`, `pq_m_translator.py`.
@@ -113,6 +115,7 @@ Erros compartilhados: `ParseError` em `pq/translators/errors.py`.
 | SQL derivado / preview | `pq/db/derived.py`, `pq/ui/state.py` |
 | Paginação | `pq/ui/components/pagination.py` |
 | Export / save | `pq/export/query_export.py`, `pq/storage/data_store.py` |
+| Modo cloud / upload demo | `pq/storage/cloud.py`, `pq/config.is_cloud_mode`, `demo/` |
 | Nova função DAX | `pq/translators/dax.py` → `_Parser._translate_call` |
 | Novo passo M | `pq/translators/m.py` → `_translate_step` |
 | Novo formato de arquivo | `pq/config.LOADABLE_EXTENSIONS`, `pq/db/connection.duckdb_read_expr`, `pq/export/io` |
@@ -136,6 +139,7 @@ Após mudanças: atualizar este spec (e README se user-facing); `python -m pytes
 | Tópico | Status |
 |--------|--------|
 | App local single-user | Sem autenticação; distribuição Windows via zip portátil (GitHub Releases) |
+| Demo online (Streamlit Cloud) | Upload efêmero + `demo/vendas_demo.parquet`; sem persistência em disco |
 | DAX / M | Subconjuntos — não paridade com Power BI |
 | Legacy `input/`/`output/` | Migrados para `data/` na 1ª execução |
-| Testes | 49 pytest; CI: ruff (lint+format), pytest (3.9–3.12, cov≥45%), mypy, pip-audit; pre-commit local |
+| Testes | 56 pytest; CI: ruff (lint+format), pytest (3.9–3.12, cov≥45%), mypy, pip-audit; pre-commit local |

@@ -7,6 +7,7 @@ from pathlib import Path
 import duckdb
 import streamlit as st
 
+from pq.config import is_cloud_mode
 from pq.db.schema import describe_sql, get_schema
 from pq.storage import base_name_from
 from pq.ui.context import WorkContext
@@ -18,7 +19,10 @@ def build_work_context(
     data_dir: Path,
     active: str,
     loaded: list[str],
+    *,
+    cloud_mode: bool | None = None,
 ) -> WorkContext:
+    cloud = is_cloud_mode() if cloud_mode is None else cloud_mode
     derived_sql = get_derived_sql(active)
     schema_df = get_schema(active)
     work_from_clause = work_from(active)
@@ -49,12 +53,24 @@ def build_work_context(
         work_sql=work_sql,
         derived_sql=derived_sql,
         has_derived=has_derived,
+        cloud_mode=cloud,
     )
 
 
-def render_empty_state() -> None:
+def render_empty_state(*, cloud_mode: bool = False) -> None:
     st.title("⚡ Parquet Query")
-    st.info(
-        "Selecione e carregue um arquivo `.parquet` ou `.csv` em `data/` "
-        "na barra lateral para começar."
-    )
+    if cloud_mode:
+        st.info(
+            "Envie um `.parquet` ou `.csv` na barra lateral, ou marque o dataset de exemplo "
+            "e clique **Carregar selecionados**."
+        )
+        st.caption(
+            "Versão demo online: exportações são feitas por download. "
+            "Para versionamento persistente em `data/`, use a [versão local]"
+            "(https://github.com/GuilhermeRoesler/ParquetQuery/releases)."
+        )
+    else:
+        st.info(
+            "Selecione e carregue um arquivo `.parquet` ou `.csv` em `data/` "
+            "na barra lateral para começar."
+        )

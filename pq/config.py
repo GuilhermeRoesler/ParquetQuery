@@ -2,10 +2,24 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE / "data"
+DEMO_DIR = BASE / "demo"
+CLOUD_UPLOAD_MAX_BYTES = 50 * 1024 * 1024
+
+
+def is_cloud_mode() -> bool:
+    """True no Streamlit Community Cloud ou com PQ_CLOUD_MODE=1 (teste local)."""
+    override = os.environ.get("PQ_CLOUD_MODE", "").lower()
+    if override in ("1", "true", "yes"):
+        return True
+    if override in ("0", "false", "no"):
+        return False
+    return os.environ.get("STREAMLIT_RUNTIME_ENVIRONMENT") == "cloud"
+
 
 LOADABLE_EXTENSIONS = {".parquet", ".csv"}
 CAST_TYPES = ["VARCHAR", "INTEGER", "BIGINT", "DOUBLE", "BOOLEAN", "DATE", "TIMESTAMP"]

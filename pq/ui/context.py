@@ -24,3 +24,4 @@ class WorkContext:
     work_sql: str
     derived_sql: str | None
     has_derived: bool
+    cloud_mode: bool = False

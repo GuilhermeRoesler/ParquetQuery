@@ -1,5 +1,7 @@
 *.parquet
 *.csv
+!demo/*.parquet
+!demo/*.csv
 data
 *.pyc
 .venv/

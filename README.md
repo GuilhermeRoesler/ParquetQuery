@@ -6,6 +6,20 @@ Aplicação **Streamlit** para explorar arquivos **Parquet** e **CSV** com **Duc
 
 ---
 
+## Experimente online
+
+**[parquet-query.streamlit.app](https://parquet-query.streamlit.app)** — demo pública no Streamlit Community Cloud. Envie um `.parquet`/`.csv` (até 50 MB) ou use o dataset de exemplo `vendas_demo`. Exportação por download; versionamento persistente fica na [versão local](#download-usuário-windows).
+
+Testar o modo cloud localmente:
+
+```bash
+set PQ_CLOUD_MODE=1          # Windows cmd
+# ou: $env:PQ_CLOUD_MODE=1  # PowerShell
+streamlit run app.py
+```
+
+---
+
 ## Download (usuário Windows)
 
 Sem Python instalado: baixe o **`.zip` portátil** na [página de Releases](https://github.com/GuilhermeRoesler/ParquetQuery/releases).
@@ -92,6 +106,14 @@ CI (GitHub Actions): Ruff (lint + format), pytest em Python 3.9/3.11/3.12 com co
 
 Build local (Windows): `powershell -File scripts/build_portable.ps1 -Version 1.6.5`
 
+### Publicar demo online (Streamlit Community Cloud)
+
+App publicado em [parquet-query.streamlit.app](https://parquet-query.streamlit.app). Para redeploy ou fork:
+
+1. Push do repositório (inclui `demo/vendas_demo.parquet`).
+2. Em [share.streamlit.io](https://share.streamlit.io): **New app** → repo → branch `main` → **`app.py`**.
+3. `requirements.txt` na raiz; `.streamlit/config.toml` limita upload a 50 MB.
+
 **Documentação:** ao mudar código, atualize `LIVING_SPEC.md` (decisões técnicas) e `README.md` (se user-facing) na mesma sessão — doc e código devem refletir um ao outro.
 
 ---
@@ -107,8 +129,9 @@ pq/                 # Pacote principal
   storage/          # Versionamento + _manifest.json
   translators/      # DAX e M → SQL
   overview/         # SQL de overview, formatação pt-BR
+demo/               # Dataset de exemplo (modo vitrine / Streamlit Cloud)
 data/               # Arquivos + _manifest.json
-tests/              # pytest (49 testes)
+tests/              # pytest (56 testes)
 LIVING_SPEC.md      # Decisões técnicas para IA/contribuidores
 ```
 
