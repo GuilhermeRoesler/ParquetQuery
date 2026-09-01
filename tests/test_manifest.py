@@ -24,7 +24,9 @@ def test_load_manifest_corrupt(tmp_path: Path) -> None:
     (tmp_path / "_manifest.json").write_text("{ invalid", encoding="utf-8")
     manifest = load_manifest(tmp_path)
     assert manifest_is_corrupt(manifest)
-    assert "invalid" in manifest_corrupt_message(manifest).lower() or manifest_corrupt_message(manifest)
+    assert "invalid" in manifest_corrupt_message(manifest).lower() or manifest_corrupt_message(
+        manifest
+    )
 
 
 def test_safe_data_path_ok(tmp_path: Path) -> None:
@@ -34,7 +36,7 @@ def test_safe_data_path_ok(tmp_path: Path) -> None:
 
 
 def test_safe_data_path_rejects_traversal(tmp_path: Path) -> None:
-    with pytest.raises(ValueError, match="inválido|fora"):
+    with pytest.raises(ValueError, match=r"inválido|fora"):
         safe_data_path(tmp_path, "../escape", "csv")
 
 

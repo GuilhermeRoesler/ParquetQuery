@@ -43,9 +43,7 @@ def render_sidebar(
             )
 
         data_files = [
-            path
-            for path in list_data_files(data_dir)
-            if path.suffix.lower() in LOADABLE_EXTENSIONS
+            path for path in list_data_files(data_dir) if path.suffix.lower() in LOADABLE_EXTENSIONS
         ]
 
         if not data_files:

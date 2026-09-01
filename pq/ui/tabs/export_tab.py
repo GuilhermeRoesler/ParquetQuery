@@ -88,7 +88,9 @@ def render_export_tab(ctx: WorkContext) -> None:
 
     with col_config:
         st.subheader("Versionamento")
-        export_fmt = st.radio("Formato", ["Parquet", "CSV", "XLSX"], horizontal=True, key="export_fmt")
+        export_fmt = st.radio(
+            "Formato", ["Parquet", "CSV", "XLSX"], horizontal=True, key="export_fmt"
+        )
         version_mode = st.radio(
             "Modo",
             ["Nova versão", "Sobrescrever versão"],
@@ -159,9 +161,7 @@ def render_export_tab(ctx: WorkContext) -> None:
     if col_dl.button("Baixar arquivo", type="primary", key="btn_download"):
         try:
             with st.spinner("Preparando arquivo..."):
-                data, mime, export_result = export_query_to_bytes(
-                    ctx.con, export_sql, export_fmt
-                )
+                data, mime, export_result = export_query_to_bytes(ctx.con, export_sql, export_fmt)
                 if export_result.truncated:
                     st.warning(
                         f"O resultado foi limitado a {export_result.row_count:,} linhas "
@@ -183,13 +183,13 @@ def render_export_tab(ctx: WorkContext) -> None:
         try:
             with st.spinner("Salvando..."):
                 if overwrite:
-                    for old_file in files_for_version(ctx.data_dir, ctx.current_base, export_version):
+                    for old_file in files_for_version(
+                        ctx.data_dir, ctx.current_base, export_version
+                    ):
                         if old_file != dest_path:
                             old_file.unlink()
 
-                export_result = export_query_to_path(
-                    ctx.con, export_sql, dest_path, export_fmt
-                )
+                export_result = export_query_to_path(ctx.con, export_sql, dest_path, export_fmt)
                 if export_result.truncated:
                     st.warning(
                         f"Exportado com limite de {export_result.row_count:,} linhas (máximo Excel)."

@@ -92,7 +92,7 @@ def _parse_step_name(s: str, i: int) -> tuple[str, int]:
     if s.startswith('#"', i):
         end = s.find('"', i + 2)
         if end < 0:
-            raise ParseError("Nome de passo M inválido (#\"...\").")
+            raise ParseError('Nome de passo M inválido (#"...").')
         return s[i + 2 : end], end + 1
     m = re.match(r"[A-Za-z_][A-Za-z0-9_]*", s[i:])
     if not m:
@@ -314,16 +314,9 @@ def _translate_step(
             raise ParseError("Table.SelectRows: segundo argumento deve ser 'each ...'.")
         pred = _translate_predicate(pred_raw[5:].strip(), param_names)
         src = _sql_ref(source)
-        uses_params = bool(param_names) and any(
-            f"p.{_param_sql_name(p)}" in pred for p in params
-        )
+        uses_params = bool(param_names) and any(f"p.{_param_sql_name(p)}" in pred for p in params)
         if uses_params:
-            sql = (
-                f"SELECT *\n"
-                f"FROM {src}\n"
-                f"CROSS JOIN params p\n"
-                f"WHERE {pred}"
-            )
+            sql = f"SELECT *\nFROM {src}\nCROSS JOIN params p\nWHERE {pred}"
         else:
             sql = f"SELECT *\nFROM {src}\nWHERE {pred}"
         return _Step(name, sql, uses_params)
@@ -334,7 +327,7 @@ def _translate_step(
         source, _ = _parse_quoted_name(args[0], 0)
         pairs = _parse_type_pairs(args[1])
         casts = ",\n  ".join(
-            f'CAST({_sql_ref(col)} AS {sql_type}) AS {_sql_ref(col)}' for col, sql_type in pairs
+            f"CAST({_sql_ref(col)} AS {sql_type}) AS {_sql_ref(col)}" for col, sql_type in pairs
         )
         sql = f"SELECT * REPLACE (\n  {casts}\n)\nFROM {_sql_ref(source)}"
         return _Step(name, sql)
@@ -542,7 +535,9 @@ def translate_m_to_sql(
 
     inferred = _collect_params(steps, known_tables)
     all_param_names = sorted(set(param_defs) | inferred)
-    m_defaults = {name: sql for name, expr in param_defs.items() if (sql := _m_literal_to_sql(expr))}
+    m_defaults = {
+        name: sql for name, expr in param_defs.items() if (sql := _m_literal_to_sql(expr))
+    }
     overrides = param_values or {}
     params: dict[str, str] = {}
     for p in all_param_names:
@@ -559,9 +554,7 @@ def translate_m_to_sql(
 
     lines: list[str] = []
     if params:
-        cols = ",\n    ".join(
-            f"{params[p]} AS {_param_sql_name(p)}" for p in sorted(params)
-        )
+        cols = ",\n    ".join(f"{params[p]} AS {_param_sql_name(p)}" for p in sorted(params))
         lines.append(f"WITH params AS (\n  SELECT\n    {cols}\n),")
 
     for i, step in enumerate(translated):

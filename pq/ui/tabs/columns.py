@@ -50,7 +50,7 @@ def render_columns_tab(ctx: WorkContext) -> None:
             new_col_name = st.text_input("Nome da nova coluna", key="new_col_name")
             new_col_expr = st.text_input(
                 "Expressão DuckDB",
-                placeholder=f'{quote_ident(derived_cols[0])} * 2',
+                placeholder=f"{quote_ident(derived_cols[0])} * 2",
                 key="new_col_expr",
             )
             if st.button("Adicionar", key="btn_add_col"):
@@ -85,7 +85,9 @@ Aging_Atual = IF('fValorNotas'[Dias em Atraso]>360,"9_Acima 361",
 
             if pq_formula.strip():
                 try:
-                    col_name, duck_expr = translate_power_column(normalize_power_formula(pq_formula))
+                    col_name, duck_expr = translate_power_column(
+                        normalize_power_formula(pq_formula)
+                    )
                     st.caption(f"Traduzido para DuckDB — coluna `{col_name}`:")
                     st.code(duck_expr, language="sql")
                 except ParseError as exc:

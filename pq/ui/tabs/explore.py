@@ -77,9 +77,7 @@ def render_explore_tab(ctx: WorkContext) -> None:
                         df_overview_page, overview_info = paginate_sql(
                             ctx.con, overview_sql, key="overview_page", page_size=100
                         )
-                        show_paginated_dataframe(
-                            df_overview_page, overview_info, "overview_page"
-                        )
+                        show_paginated_dataframe(df_overview_page, overview_info, "overview_page")
                 else:
                     with st.spinner("Calculando agregação..."):
                         result = get_numeric_overview(

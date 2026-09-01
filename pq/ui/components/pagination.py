@@ -100,7 +100,5 @@ def paginate_sql(
     pages = max(1, (total + page_size - 1) // page_size)
     page = _pagination_page(key, pages)
     offset = (page - 1) * page_size
-    df = con.execute(
-        f"SELECT * FROM ({query}) __q__ LIMIT {page_size} OFFSET {offset}"
-    ).df()
+    df = con.execute(f"SELECT * FROM ({query}) __q__ LIMIT {page_size} OFFSET {offset}").df()
     return df, PageInfo(page, pages, total, page_size)

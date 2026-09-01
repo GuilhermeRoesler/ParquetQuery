@@ -346,9 +346,7 @@ class _Parser:
             if self._cur.kind == TokKind.IDENT:
                 parts.append(self._advance().value)
             else:
-                raise ParseError(
-                    f"Nome de coluna inválido entre colchetes: '{self._cur.value}'."
-                )
+                raise ParseError(f"Nome de coluna inválido entre colchetes: '{self._cur.value}'.")
         self._advance()
         if not parts:
             raise ParseError("Nome de coluna vazio entre colchetes.")
@@ -512,8 +510,7 @@ class _Parser:
         if len(args) == 3:
             text, old, new = args
             return (
-                f"REPLACE(CAST({text} AS VARCHAR), CAST({old} AS VARCHAR), "
-                f"CAST({new} AS VARCHAR))"
+                f"REPLACE(CAST({text} AS VARCHAR), CAST({old} AS VARCHAR), CAST({new} AS VARCHAR))"
             )
         if len(args) == 4:
             raise ParseError(

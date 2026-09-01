@@ -116,7 +116,7 @@ Erros compartilhados: `ParseError` em `pq/translators/errors.py`.
 | Novo formato de arquivo | `pq/config.LOADABLE_EXTENSIONS`, `pq/db/connection.duckdb_read_expr`, `pq/export/io` |
 | Overview / formatação pt-BR | `pq/overview/` |
 
-Após mudanças: atualizar este spec (e README se user-facing); `python -m pytest tests/ -q` e `python -m ruff check .`.
+Após mudanças: atualizar este spec (e README se user-facing); `python -m pytest tests/ -q`, `python -m ruff check .`, `python -m ruff format --check .`, `python -m mypy pq`.
 
 ---
 
@@ -125,7 +125,7 @@ Após mudanças: atualizar este spec (e README se user-facing); `python -m pytes
 - `from __future__ import annotations`; paths com `pathlib.Path`
 - Identificadores SQL: `quote_ident()`; SQL final: `strip_sql()` (remove `;` trailing)
 - UI em português; type hints; diff mínimo; sem refatoração não solicitada
-- Lint: ruff (E, F, I, UP), linha máx. 100
+- Lint: ruff (E, F, I, UP, B, SIM, RUF), linha máx. 100; formato via `ruff format`
 
 ---
 
@@ -136,4 +136,4 @@ Após mudanças: atualizar este spec (e README se user-facing); `python -m pytes
 | App local single-user | Sem autenticação |
 | DAX / M | Subconjuntos — não paridade com Power BI |
 | Legacy `input/`/`output/` | Migrados para `data/` na 1ª execução |
-| Testes | 29 pytest; CI: ruff + pytest em push/PR |
+| Testes | 49 pytest; CI: ruff (lint+format), pytest (3.9–3.12, cov≥45%), mypy, pip-audit; pre-commit local |

@@ -94,9 +94,7 @@ def list_data_files(data_dir: Path) -> list[Path]:
     return sorted(
         path
         for path in data_dir.iterdir()
-        if path.is_file()
-        and path.suffix.lower() in DATA_EXTENSIONS
-        and path.name != MANIFEST_NAME
+        if path.is_file() and path.suffix.lower() in DATA_EXTENSIONS and path.name != MANIFEST_NAME
     )
 
 
@@ -200,11 +198,12 @@ def record_version(
 
 
 def format_bytes(n: int) -> str:
+    size = float(n)
     for unit in ("B", "KB", "MB", "GB"):
-        if n < 1024:
-            return f"{n:.1f} {unit}"
-        n /= 1024
-    return f"{n:.1f} TB"
+        if size < 1024:
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} TB"
 
 
 def migrate_legacy_dirs(data_dir: Path, base: Path) -> None:

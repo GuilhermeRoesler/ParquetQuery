@@ -42,8 +42,7 @@ def render_sql_tab(ctx: WorkContext) -> None:
 
     sql_code = st.session_state.sql_editor.get("text", default_sql)
     table_schemas = {
-        table: table_column_names(ctx.con, table, get_derived_sql(table))
-        for table in ctx.loaded
+        table: table_column_names(ctx.con, table, get_derived_sql(table)) for table in ctx.loaded
     }
     sql_completions = build_sql_completions(ctx.loaded, table_schemas)
 
@@ -103,13 +102,16 @@ def render_sql_tab(ctx: WorkContext) -> None:
                 st.markdown("**Parâmetros M** (literal SQL DuckDB)")
                 for pname in m_params:
                     default_sql = m_defaults.get(pname, "")
-                    m_param_values[pname] = st.text_input(
-                        pname,
-                        value=default_sql,
-                        placeholder="NULL",
-                        key=f"m_param_{pname}",
-                        help="Ex.: DATE '2025-01-01', 'texto', 42",
-                    ).strip() or "NULL"
+                    m_param_values[pname] = (
+                        st.text_input(
+                            pname,
+                            value=default_sql,
+                            placeholder="NULL",
+                            key=f"m_param_{pname}",
+                            help="Ex.: DATE '2025-01-01', 'texto', 42",
+                        ).strip()
+                        or "NULL"
+                    )
         if st.button("Converter para SQL", key="btn_m_translate"):
             try:
                 table_map = {m_src: m_duck_table} if m_src else {}
@@ -134,7 +136,7 @@ def render_sql_tab(ctx: WorkContext) -> None:
             st.markdown("**Base de trabalho:** inclui colunas calculadas (aba Colunas)")
             st.caption(
                 f"Para ver todas as colunas, use `FROM {ctx.work_from_clause}` — "
-                f"consultar só `\"{ctx.active}\"` retorna apenas o arquivo original."
+                f'consultar só `"{ctx.active}"` retorna apenas o arquivo original.'
             )
         st.markdown("**Todas as tabelas carregadas:** " + ", ".join(f"`{t}`" for t in ctx.loaded))
         st.markdown("**Colunas disponíveis:** " + ", ".join(f"`{c}`" for c in ctx.col_names))

@@ -27,9 +27,7 @@ def _duckdb_copy_path(con: duckdb.DuckDBPyConnection, sql: str, dest: Path, fmt:
         con.execute(f"COPY ({query}) TO '{posix}' (FORMAT PARQUET)")
         return
     if fmt == "CSV":
-        con.execute(
-            f"COPY ({query}) TO '{posix}' (FORMAT CSV, HEADER, DELIMITER ',')"
-        )
+        con.execute(f"COPY ({query}) TO '{posix}' (FORMAT CSV, HEADER, DELIMITER ',')")
         return
     raise ValueError(f"Formato não suportado para COPY: {fmt}")
 
@@ -86,8 +84,9 @@ def export_query_to_path(
 
     _duckdb_copy_path(con, sql, dest, fmt)
     query = strip_sql(sql)
-    row_count = con.execute(f"SELECT COUNT(*) FROM ({query}) __q__").fetchone()[0]
-    return ExportResult(int(row_count), False)
+    row = con.execute(f"SELECT COUNT(*) FROM ({query}) __q__").fetchone()
+    assert row is not None
+    return ExportResult(int(row[0]), False)
 
 
 def export_query_to_bytes(
@@ -109,9 +108,7 @@ def export_query_to_bytes(
         tmp_path = Path(tmp.name)
 
     try:
-        export_result = export_query_to_path(
-            con, sql, tmp_path, fmt, xlsx_limit=xlsx_limit
-        )
+        export_result = export_query_to_path(con, sql, tmp_path, fmt, xlsx_limit=xlsx_limit)
         return tmp_path.read_bytes(), mime_map[ext], export_result
     finally:
         tmp_path.unlink(missing_ok=True)

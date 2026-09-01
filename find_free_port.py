@@ -1,4 +1,5 @@
 """Retorna a primeira porta TCP livre em 127.0.0.1 a partir de `start`."""
+
 from __future__ import annotations
 
 import socket
@@ -13,9 +14,7 @@ def find_free_port(start: int = 8501, limit: int = 50) -> int:
             except OSError:
                 continue
             return port
-    raise SystemExit(
-        f"Nenhuma porta livre entre {start} e {start + limit - 1}."
-    )
+    raise SystemExit(f"Nenhuma porta livre entre {start} e {start + limit - 1}.")
 
 
 if __name__ == "__main__":

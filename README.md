@@ -61,11 +61,14 @@ python -m venv .venv
 .venv\Scripts\activate          # Windows
 pip install -r requirements.txt -r requirements-dev.txt
 
-python -m pytest tests/ -q
+python -m pytest tests/ -q --cov=pq
 python -m ruff check .
+python -m ruff format --check .
+python -m mypy pq --config-file pyproject.toml
+pre-commit install   # opcional: hooks locais espelhando o CI
 ```
 
-CI (GitHub Actions): `ruff check` + `pytest` em push/PR para `main`/`master`.
+CI (GitHub Actions): Ruff (lint + format), pytest em Python 3.9/3.11/3.12 com cobertura mínima, mypy e `pip-audit`. Dependabot abre PRs semanais de dependências.
 
 **Documentação:** ao mudar código, atualize `LIVING_SPEC.md` (decisões técnicas) e `README.md` (se user-facing) na mesma sessão — doc e código devem refletir um ao outro.
 
@@ -83,7 +86,7 @@ pq/                 # Pacote principal
   translators/      # DAX e M → SQL
   overview/         # SQL de overview, formatação pt-BR
 data/               # Arquivos + _manifest.json
-tests/              # pytest (29 testes)
+tests/              # pytest (49 testes)
 LIVING_SPEC.md      # Decisões técnicas para IA/contribuidores
 ```
 

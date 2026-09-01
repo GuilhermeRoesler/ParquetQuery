@@ -8,7 +8,10 @@ from pq.db.sql_utils import quote_ident
 
 def column_type_category(dtype: str) -> str:
     d = dtype.upper()
-    if any(t in d for t in ("INT", "FLOAT", "DOUBLE", "DECIMAL", "NUMERIC", "BIGINT", "HUGEINT", "REAL")):
+    if any(
+        t in d
+        for t in ("INT", "FLOAT", "DOUBLE", "DECIMAL", "NUMERIC", "BIGINT", "HUGEINT", "REAL")
+    ):
         return "numeric"
     if any(t in d for t in ("DATE", "TIMESTAMP", "TIME")):
         return "date"
@@ -33,7 +36,7 @@ def build_classificatory_overview_sql(
         f"SELECT {qcol}, COUNT(*) AS {quote_ident('quantidade')}\n"
         f"FROM {wf}\n"
         f"GROUP BY {qcol}\n"
-        f'ORDER BY {quote_ident("quantidade")} DESC'
+        f"ORDER BY {quote_ident('quantidade')} DESC"
     )
 
 

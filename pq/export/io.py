@@ -9,7 +9,8 @@ import pandas as pd
 
 
 def df_to_csv_bytes(df: pd.DataFrame) -> bytes:
-    return df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+    csv_text: str = df.to_csv(index=False, encoding="utf-8-sig")
+    return csv_text.encode("utf-8-sig")
 
 
 def df_to_xlsx_bytes(df: pd.DataFrame) -> bytes:

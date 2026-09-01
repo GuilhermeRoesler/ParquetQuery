@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date, datetime
+
 import pandas as pd
 
 
@@ -23,12 +25,19 @@ def format_number_pt(value: object, *, max_decimals: int = 6) -> str:
             return "—"
     except TypeError:
         pass
-    if hasattr(value, "strftime"):
-        if hasattr(value, "hour") and (value.hour or value.minute or value.second):
+    if isinstance(value, datetime):
+        if value.hour or value.minute or value.second:
             return value.strftime("%d/%m/%Y %H:%M:%S")
         return value.strftime("%d/%m/%Y")
+    if isinstance(value, date):
+        return value.strftime("%d/%m/%Y")
 
-    num = float(value)
+    if isinstance(value, (int, float)):
+        num = float(value)
+    elif isinstance(value, str):
+        num = float(value)
+    else:
+        num = float(str(value))
     if num == int(num) and abs(num) < 1e18:
         return _format_int_pt(int(num))
 

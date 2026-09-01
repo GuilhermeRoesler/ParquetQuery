@@ -20,8 +20,8 @@ def test_quote_ident_escapes_quotes() -> None:
 
 def test_validate_derived_sql_ok() -> None:
     con = duckdb.connect()
-    con.execute('CREATE TABLE t AS SELECT 1 AS x')
-    validate_derived_sql(con, 'SELECT * FROM t')
+    con.execute("CREATE TABLE t AS SELECT 1 AS x")
+    validate_derived_sql(con, "SELECT * FROM t")
 
 
 def test_validate_derived_sql_fail() -> None:

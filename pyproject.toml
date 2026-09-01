@@ -1,6 +1,6 @@
 [project]
 name = "parquet-query"
-version = "1.8.0"
+version = "1.6.5"
 description = "Exploração de arquivos Parquet/CSV com DuckDB e Streamlit"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -9,15 +9,43 @@ requires-python = ">=3.9"
 testpaths = ["tests"]
 pythonpath = ["."]
 
+[tool.coverage.run]
+source = ["pq"]
+omit = ["pq/ui/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+]
+
 [tool.ruff]
 line-length = 100
 target-version = "py39"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP"]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E501"]
-"pq/ui/**" = ["E501"]
-"pq/translators/**" = ["E501", "F841"]
+"pq/ui/**" = ["E501", "SIM102", "SIM108", "RUF001"]
+"pq/translators/**" = ["E501", "F841", "RUF012", "SIM114", "RUF034"]
 "pq/overview/sql.py" = ["E501"]
+"pq/db/schema.py" = ["SIM108"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_ignores = true
+ignore_missing_imports = true
+exclude = ["pq/ui/"]
+
+[[tool.mypy.overrides]]
+module = [
+    "pq.db.connection",
+    "pq.db.schema",
+    "pq.db.cached",
+    "pq.translators.*",
+    "app",
+]
+ignore_errors = true
