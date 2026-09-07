@@ -90,4 +90,4 @@ Invalidação: `get_schema.clear()`, `invalidate_data_caches()` (overview, COUNT
 | Demo online (Streamlit Cloud) | Auto-load de `demo/vendas_demo.parquet` + `clientes_demo.parquet`; receitas SQL/DAX/M; upload efêmero; sem persistência em disco |
 | DAX / M | Subconjuntos — não paridade com Power BI |
 | Legacy `input/`/`output/` | Migrados para `data/` na 1ª execução |
-| Testes | pytest; CI: ruff (lint+format), pytest (3.9–3.12, cov≥45%), mypy, pip-audit; pre-commit local |
+| Testes | pytest; CI: ruff (lint+format), pytest (3.10–3.12, cov≥45%), mypy, pip-audit; pre-commit local |

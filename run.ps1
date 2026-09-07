@@ -80,11 +80,11 @@ try {
     }
 
     try {
-        Invoke-Python $launcher '-c' 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)'
+        Invoke-Python $launcher '-c' 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)'
     } catch {
         $version = & $launcher.Exe @($launcher.Prefix + @('--version')) 2>$null
         if ($version) { Write-Host $version }
-        Exit-WithError 'Python 3.9 ou superior e necessario.'
+        Exit-WithError 'Python 3.10 ou superior e necessario.'
     }
 
     $version = (& $launcher.Exe @($launcher.Prefix + @('--version')) 2>&1 | Out-String).Trim()

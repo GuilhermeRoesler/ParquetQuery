@@ -32,12 +32,12 @@ elif command -v python >/dev/null 2>&1; then
     PY=python
 else
     echo "[ERRO] Python 3 não encontrado." >&2
-    echo "       Instale Python 3.9+ e tente novamente." >&2
+    echo "       Instale Python 3.10+ e tente novamente." >&2
     exit 1
 fi
 
-if ! "$PY" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)'; then
-    echo "[ERRO] Python 3.9 ou superior é necessário." >&2
+if ! "$PY" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)'; then
+    echo "[ERRO] Python 3.10 ou superior é necessário." >&2
     "$PY" --version >&2 || true
     exit 1
 fi

@@ -2,7 +2,7 @@
 
 Aplicação **Streamlit** para explorar arquivos **Parquet** e **CSV** com **DuckDB** — SQL ad-hoc, colunas calculadas (DuckDB ou DAX do Power BI), tradutor Power Query (M) e exportação versionada em `data/`.
 
-**Requisitos:** Python 3.9+ · Windows, Linux ou macOS · Licença [MIT](LICENSE)
+**Requisitos:** Python 3.10+ · Windows, Linux ou macOS · Licença [MIT](LICENSE)
 
 ---
 
@@ -96,7 +96,7 @@ python -m mypy pq --config-file pyproject.toml
 pre-commit install   # opcional: hooks locais espelhando o CI
 ```
 
-CI (GitHub Actions): Ruff (lint + format), pytest em Python 3.9/3.11/3.12 com cobertura mínima, mypy e `pip-audit`. Dependabot abre PRs semanais de dependências.
+CI (GitHub Actions): Ruff (lint + format), pytest em Python 3.10/3.11/3.12 com cobertura mínima, mypy e `pip-audit`. Dependabot abre PRs semanais de dependências.
 
 Dependências: fonte de verdade em `pyproject.toml`; `requirements.txt` / `requirements-dev.txt` são espelhos (Streamlit Cloud e build portátil).
 

@@ -49,7 +49,13 @@ def build_work_context(
         schema_df=schema_df,
         work_schema_df=work_schema_df,
         col_names=work_schema_df["column_name"].tolist(),
-        col_types=dict(zip(work_schema_df["column_name"], work_schema_df["column_type"])),
+        col_types=dict(
+            zip(
+                work_schema_df["column_name"],
+                work_schema_df["column_type"],
+                strict=True,
+            )
+        ),
         work_from_clause=from_clause,
         work_sql=work_sql,
         derived_sql=derived_sql,
