@@ -1,0 +1,11 @@
+---
+description: Exportação e versionamento em data/ — COPY, manifest, cloud mode
+globs: pq/export/**/*.py, pq/storage/**/*.py
+alwaysApply: false
+---
+
+# Export e storage
+
+Ao editar exportação, versionamento ou modo cloud, leia:
+
+**`.cursor/skills/export-storage/SKILL.md`**

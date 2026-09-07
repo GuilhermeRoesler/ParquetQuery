@@ -1,0 +1,11 @@
+---
+description: UI Streamlit — session state, WorkContext, abas e sidebar
+globs: pq/ui/**/*.py
+alwaysApply: false
+---
+
+# UI Streamlit
+
+Ao editar sidebar, abas ou componentes, leia:
+
+**`.cursor/skills/ui-streamlit/SKILL.md`**

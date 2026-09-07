@@ -1,0 +1,11 @@
+---
+description: Tradutores DAX e M (Power Query) para SQL DuckDB
+globs: pq/translators/**/*.py
+alwaysApply: false
+---
+
+# Tradutores DAX / M
+
+Ao estender ou corrigir tradutores, leia:
+
+**`.cursor/skills/translators/SKILL.md`**

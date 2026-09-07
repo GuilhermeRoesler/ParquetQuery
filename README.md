@@ -116,7 +116,7 @@ App publicado em [parquet-query.streamlit.app](https://parquet-query.streamlit.a
 2. Em [share.streamlit.io](https://share.streamlit.io): **New app** → repo → branch `main` → **`app.py`**.
 3. `requirements.txt` na raiz; `.streamlit/config.toml` limita upload a 50 MB.
 
-**Documentação:** ao mudar código, atualize `LIVING_SPEC.md` (decisões técnicas) e `README.md` (se user-facing) na mesma sessão — doc e código devem refletir um ao outro.
+**Documentação:** decisões técnicas ficam em `.cursor/skills/*/SKILL.md`; ao mudar código, atualize a skill afetada e este `README.md` se a mudança for user-facing — doc e código devem refletir um ao outro.
 
 ---
 
@@ -136,7 +136,7 @@ demo/               # Dataset de exemplo (modo vitrine / Streamlit Cloud)
 data/               # Arquivos + _manifest.json
 tests/              # pytest
 LICENSE             # MIT
-LIVING_SPEC.md      # Decisões técnicas para IA/contribuidores
+.cursor/skills/     # Decisões técnicas (skills) + rules ponteiro
 ```
 
 ---
@@ -158,7 +158,7 @@ LIVING_SPEC.md      # Decisões técnicas para IA/contribuidores
 
 | Arquivo | Conteúdo | Quando atualizar |
 |---------|----------|------------------|
-| **[LIVING_SPEC.md](LIVING_SPEC.md)** | Decisões técnicas, armadilhas, mapa de edição | Mudança de arquitetura, convenções ou comportamento interno |
+| **`.cursor/skills/*/SKILL.md`** | Decisões técnicas, armadilhas, mapa de edição (fonte canônica) | Mudança de arquitetura, convenções ou comportamento interno |
 | **README.md** (este) | Uso, dev, troubleshooting | Mudança visível ao usuário ou ao fluxo de setup |
 
-Detalhes de tradutores DAX/M: código em `pq/translators/`. Doc e código devem estar sempre alinhados.
+Rules em `.cursor/rules/` apontam para as skills. Detalhes de tradutores DAX/M: código em `pq/translators/` + skill `translators`. Doc e código devem estar sempre alinhados.

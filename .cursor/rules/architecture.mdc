@@ -1,0 +1,13 @@
+---
+description: Arquitetura Streamlit+DuckDB — fluxo de dados, derived SQL, paginação e caches
+globs: pq/**/*.py, app.py, tests/**/*.py
+alwaysApply: false
+---
+
+# Arquitetura
+
+Ao mexer em `pq/`, `app.py` ou testes de integração, leia:
+
+**`.cursor/skills/architecture/SKILL.md`**
+
+Resumo: views DuckDB + `derived_by_table` + `work_from_clause`; paginar com `paginate_sql`; nunca passar conexão DuckDB a `@st.cache_data`.

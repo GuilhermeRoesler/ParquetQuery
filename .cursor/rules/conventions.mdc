@@ -1,0 +1,13 @@
+---
+description: Convenções de código Python — estilo, lint, tipagem e diff mínimo
+globs: "**/*.py"
+alwaysApply: false
+---
+
+# Convenções
+
+Ao editar Python neste repo, leia:
+
+**`.cursor/skills/conventions/SKILL.md`**
+
+UI em português; `pathlib`; `quote_ident` / `strip_sql`; ruff + mypy; diff mínimo.

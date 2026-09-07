@@ -1,28 +1,13 @@
 ---
-description: Especificação viva do Parquet Query — contexto e atualização contínua
+description: Protocolo de documentação — skills canônicas alinhadas ao código
 alwaysApply: true
 ---
 
 # Especificação viva
 
-Antes de implementar ou explicar algo neste projeto, leia **`LIVING_SPEC.md`** na raiz.
+Antes de implementar ou explicar algo não trivial, leia a skill:
 
-## Ao concluir mudanças relevantes
+**`.cursor/skills/living-spec/SKILL.md`**
 
-Atualize a documentação na mesma sessão — **sempre alinhada ao código**:
-
-1. **`LIVING_SPEC.md`** — decisões técnicas, arquitetura, convenções (`Última atualização` + seções afetadas)
-2. **`README.md`** — se mudou fluxo do usuário, abas, launch, dev ou troubleshooting
-
-Histórico no git — **não** manter changelog nem versão no spec.
-
-## Regras rápidas (não substituem o spec)
-
-- Decisões técnicas completas em `LIVING_SPEC.md` (~130 linhas)
-- App Streamlit + DuckDB; dados em `data/` com versionamento `{base}_vN`
-- SQL derivado: `derived_by_table` + `work_from_clause` — ver spec
-- Paginação pesada: `paginate_sql`, não DataFrame inteiro
-- Caches `@st.cache_data`: nunca passar conexão DuckDB como argumento
-- UI em português; diff mínimo; sem refatoração não solicitada
-
-Se o spec e o código divergirem, **corrija o spec** ou o código — nunca deixe os dois inconsistentes.
+Fonte canônica de decisões técnicas: `.cursor/skills/*/SKILL.md`.
+README para fluxo do usuário.
