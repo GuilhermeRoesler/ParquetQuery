@@ -480,8 +480,8 @@ def m_source_table(m_code: str) -> str | None:
         return None
 
 
-def m_parameter_names(m_code: str) -> list[str]:
-    """Parâmetros M: definidos no script + referenciados em predicados each."""
+def m_parameters(m_code: str) -> tuple[list[str], dict[str, str]]:
+    """Parâmetros M (nomes + defaults SQL) com um único parse do script."""
     param_defs, steps = parse_m_script(m_code)
     known_tables: set[str] = set()
     for _n, expr in steps:
@@ -491,18 +491,19 @@ def m_parameter_names(m_code: str) -> list[str]:
             if src not in {s[0] for s in steps}:
                 known_tables.add(src)
     inferred = _collect_params(steps, known_tables)
-    return sorted(set(param_defs) | inferred)
+    names = sorted(set(param_defs) | inferred)
+    defaults = {name: sql for name, expr in param_defs.items() if (sql := _m_literal_to_sql(expr))}
+    return names, defaults
+
+
+def m_parameter_names(m_code: str) -> list[str]:
+    """Parâmetros M: definidos no script + referenciados em predicados each."""
+    return m_parameters(m_code)[0]
 
 
 def m_parameter_defaults(m_code: str) -> dict[str, str]:
     """Literais SQL inferidos de definições M (`MeuParam = #date(...)`)."""
-    param_defs, _steps = parse_m_script(m_code)
-    out: dict[str, str] = {}
-    for name, expr in param_defs.items():
-        sql = _m_literal_to_sql(expr)
-        if sql is not None:
-            out[name] = sql
-    return out
+    return m_parameters(m_code)[1]
 
 
 def translate_m_to_sql(

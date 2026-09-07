@@ -1,4 +1,4 @@
-from pq.translators.m import m_parameter_names, translate_m_to_sql
+from pq.translators.m import m_parameter_names, m_parameters, translate_m_to_sql
 
 
 def test_translate_select_rows() -> None:
@@ -19,3 +19,13 @@ RangeStart = #date(2025, 1, 1),
 """
     params = m_parameter_names(m_code)
     assert "RangeStart" in params
+
+
+def test_m_parameters_single_parse() -> None:
+    m_code = """
+RangeStart = #date(2025, 1, 1),
+#"Filtrado" = Table.SelectRows(T, each [DATA] >= RangeStart),
+"""
+    names, defaults = m_parameters(m_code)
+    assert "RangeStart" in names
+    assert defaults["RangeStart"].startswith("DATE")

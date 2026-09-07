@@ -12,15 +12,13 @@ from pq.export.query_export import export_query_to_bytes, export_query_to_path
 from pq.storage import (
     build_timeline,
     files_for_version,
-    list_version_numbers,
     load_manifest,
-    manifest_corrupt_message,
-    manifest_is_corrupt,
-    next_available_version,
     record_version,
     safe_data_path,
     versioned_stem,
 )
+from pq.ui.components.errors import show_db_error
+from pq.ui.components.manifest import warn_if_manifest_corrupt
 from pq.ui.context import WorkContext
 
 
@@ -35,12 +33,7 @@ def render_export_tab(ctx: WorkContext) -> None:
     else:
         st.caption(f"Base de dados: `{ctx.current_base}` · destino padrão: `data/`")
 
-    manifest = load_manifest(ctx.data_dir)
-    if manifest_is_corrupt(manifest):
-        st.warning(
-            f"`_manifest.json` corrompido: {manifest_corrupt_message(manifest)}. "
-            "A exportação recriará o manifesto ao salvar."
-        )
+    warn_if_manifest_corrupt(ctx.data_dir, for_export=True)
 
     export_source = st.radio(
         "O que exportar?",
@@ -67,8 +60,8 @@ def render_export_tab(ctx: WorkContext) -> None:
         st.code(export_sql, language="sql")
 
     timeline = build_timeline(ctx.data_dir, ctx.current_base)
-    existing_versions = list_version_numbers(ctx.data_dir, ctx.current_base)
-    next_version = next_available_version(ctx.data_dir, ctx.current_base)
+    existing_versions = [int(item["version"]) for item in timeline if int(item["version"]) > 0]
+    next_version = (max(existing_versions) + 1) if existing_versions else 1
 
     col_timeline, col_config = st.columns([1.2, 1])
     with col_timeline:
@@ -139,6 +132,7 @@ def render_export_tab(ctx: WorkContext) -> None:
             key="export_filename",
         )
 
+        manifest = load_manifest(ctx.data_dir)
         version_meta = (
             manifest.get("bases", {})
             .get(ctx.current_base, {})
@@ -187,7 +181,7 @@ def render_export_tab(ctx: WorkContext) -> None:
                     key="dl_btn",
                 )
         except Exception as exc:
-            st.error(f"Erro ao exportar: {exc}")
+            show_db_error(exc, prefix="Erro ao exportar")
 
     if not ctx.cloud_mode:
         st.caption(f"Destino: `{dest_path}`")
@@ -204,7 +198,8 @@ def render_export_tab(ctx: WorkContext) -> None:
                     export_result = export_query_to_path(ctx.con, export_sql, dest_path, export_fmt)
                     if export_result.truncated:
                         st.warning(
-                            f"Exportado com limite de {export_result.row_count:,} linhas (máximo Excel)."
+                            f"Exportado com limite de {export_result.row_count:,} linhas "
+                            "(máximo Excel)."
                         )
 
                     record_version(
@@ -231,4 +226,4 @@ def render_export_tab(ctx: WorkContext) -> None:
             except ValueError as exc:
                 st.error(str(exc))
             except Exception as exc:
-                st.error(f"Erro ao salvar: {exc}")
+                show_db_error(exc, prefix="Erro ao salvar")

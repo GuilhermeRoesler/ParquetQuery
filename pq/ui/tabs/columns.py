@@ -9,6 +9,7 @@ from pq.config import CAST_TYPES
 from pq.db.derived import build_derived_select
 from pq.db.sql_utils import quote_ident, validate_derived_sql
 from pq.translators import ParseError, normalize_power_formula, translate_power_column
+from pq.ui.components.errors import show_db_error
 from pq.ui.components.pagination import paginate_sql, show_paginated_dataframe
 from pq.ui.context import WorkContext
 from pq.ui.state import set_derived_sql
@@ -21,9 +22,23 @@ def _apply_derived(ctx: WorkContext, new_sql: str, success_msg: str) -> None:
         st.success(success_msg)
         st.rerun()
     except duckdb.Error as exc:
-        st.error(f"SQL inválido: {exc}")
+        show_db_error(exc, prefix="SQL inválido")
     except Exception as exc:
-        st.error(f"Erro: {exc}")
+        show_db_error(exc, prefix="Erro")
+
+
+def _translate_dax_formula(formula: str) -> tuple[str, str]:
+    """Traduz DAX com cache em session state para evitar parse duplicado no mesmo input."""
+    cache = st.session_state.get("dax_translate_cache")
+    if isinstance(cache, dict) and cache.get("formula") == formula:
+        return str(cache["col_name"]), str(cache["duck_expr"])
+    col_name, duck_expr = translate_power_column(normalize_power_formula(formula))
+    st.session_state.dax_translate_cache = {
+        "formula": formula,
+        "col_name": col_name,
+        "duck_expr": duck_expr,
+    }
+    return col_name, duck_expr
 
 
 def render_columns_tab(ctx: WorkContext) -> None:
@@ -87,9 +102,7 @@ Aging_Atual = IF('fValorNotas'[Dias em Atraso]>360,"9_Acima 361",
 
             if pq_formula.strip():
                 try:
-                    col_name, duck_expr = translate_power_column(
-                        normalize_power_formula(pq_formula)
-                    )
+                    col_name, duck_expr = _translate_dax_formula(pq_formula)
                     st.caption(f"Traduzido para DuckDB — coluna `{col_name}`:")
                     st.code(duck_expr, language="sql")
                 except ParseError as exc:
@@ -102,9 +115,7 @@ Aging_Atual = IF('fValorNotas'[Dias em Atraso]>360,"9_Acima 361",
                     st.warning("Cole uma fórmula no formato: Nome da Coluna = expressão")
                 else:
                     try:
-                        col_name, duck_expr = translate_power_column(
-                            normalize_power_formula(pq_formula)
-                        )
+                        col_name, duck_expr = _translate_dax_formula(pq_formula)
                         new_sql = build_derived_select(
                             ctx.active,
                             f"*, ({duck_expr}) AS {quote_ident(col_name)}",
@@ -156,7 +167,7 @@ Aging_Atual = IF('fValorNotas'[Dias em Atraso]>360,"9_Acima 361",
 
     st.markdown("---")
 
-    current_sql = st.session_state.derived_by_table.get(ctx.active)
+    current_sql = ctx.derived_sql
     if current_sql:
         with st.expander("SQL da view derivada atual"):
             st.code(current_sql, language="sql")
@@ -168,8 +179,8 @@ Aging_Atual = IF('fValorNotas'[Dias em Atraso]>360,"9_Acima 361",
                 st.session_state.last_result_sql = current_sql
                 st.success(f"{der_info.total:,} linhas.")
                 show_paginated_dataframe(df_der, der_info, "derived_page")
-            except duckdb.Error as exc:
-                st.error(f"Erro SQL: {exc}")
+            except Exception as exc:
+                show_db_error(exc, prefix="Erro SQL")
 
         if c2.button("Resetar transformações", key="btn_reset_derived"):
             set_derived_sql(ctx.active, None)

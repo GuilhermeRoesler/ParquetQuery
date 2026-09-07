@@ -16,6 +16,13 @@ def get_schema(table: str) -> pd.DataFrame:
     return con.execute(f"DESCRIBE {quote_ident(table)}").df()
 
 
+@st.cache_data(ttl=300)
+def describe_sql_cached(sql: str) -> pd.DataFrame:
+    """DESCRIBE de um SELECT na conexão compartilhada (sem passar con)."""
+    con = get_connection()
+    return con.execute(f"DESCRIBE ({sql})").df()
+
+
 def describe_sql(con: duckdb.DuckDBPyConnection, sql: str) -> pd.DataFrame:
     return con.execute(f"DESCRIBE ({sql})").df()
 

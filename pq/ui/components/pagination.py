@@ -8,6 +8,7 @@ import duckdb
 import pandas as pd
 import streamlit as st
 
+from pq.db.queries import count_query
 from pq.db.sql_utils import strip_sql
 
 
@@ -19,10 +20,23 @@ class PageInfo(NamedTuple):
 
 
 def clear_sql_count_cache() -> None:
-    """Invalida cache de COUNT(*) usado por paginate_sql."""
+    """Invalida cache de COUNT(*) usado por paginate_sql / cached_sql_count."""
     for key in list(st.session_state.keys()):
         if str(key).startswith("sql_cnt_"):
             del st.session_state[key]
+
+
+def cached_sql_count(
+    con: duckdb.DuckDBPyConnection,
+    sql: str,
+    cache_key: str,
+) -> int:
+    """COUNT(*) com cache em session state (invalidado por clear_sql_count_cache)."""
+    query = strip_sql(sql)
+    state_key = f"sql_cnt_{cache_key}_{hash(query)}"
+    if state_key not in st.session_state:
+        st.session_state[state_key] = count_query(con, query)
+    return int(st.session_state[state_key])
 
 
 def _pagination_page(key: str, pages: int) -> int:
@@ -33,15 +47,6 @@ def _pagination_page(key: str, pages: int) -> int:
     page = max(1, min(page, pages))
     st.session_state[state_key] = page
     return page
-
-
-def _cached_sql_count(con: duckdb.DuckDBPyConnection, query: str, cache_key: str) -> int:
-    state_key = f"sql_cnt_{cache_key}_{hash(query)}"
-    if state_key not in st.session_state:
-        st.session_state[state_key] = con.execute(
-            f"SELECT COUNT(*) FROM ({query}) __q__"
-        ).fetchone()[0]
-    return int(st.session_state[state_key])
 
 
 def render_pagination_bar(key: str, info: PageInfo) -> None:
@@ -79,15 +84,6 @@ def show_paginated_dataframe(df: pd.DataFrame, info: PageInfo, key: str) -> None
     render_pagination_bar(key, info)
 
 
-def paginate(df: pd.DataFrame, key: str, page_size: int = 500) -> tuple[pd.DataFrame, PageInfo]:
-    total = len(df)
-    pages = max(1, (total + page_size - 1) // page_size)
-    page = _pagination_page(key, pages)
-    offset = (page - 1) * page_size
-    info = PageInfo(page, pages, total, page_size)
-    return df.iloc[offset : offset + page_size], info
-
-
 def paginate_sql(
     con: duckdb.DuckDBPyConnection,
     sql: str,
@@ -96,7 +92,7 @@ def paginate_sql(
 ) -> tuple[pd.DataFrame, PageInfo]:
     """Paginação diretamente no DuckDB — não carrega tudo na RAM."""
     query = strip_sql(sql)
-    total = _cached_sql_count(con, query, key)
+    total = cached_sql_count(con, query, key)
     pages = max(1, (total + page_size - 1) // page_size)
     page = _pagination_page(key, pages)
     offset = (page - 1) * page_size

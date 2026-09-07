@@ -12,10 +12,8 @@ from pq.storage.data_store import (
     manifest_is_corrupt,
     migrate_legacy_dirs,
     next_available_version,
-    original_file,
     record_version,
     safe_data_path,
-    version_exists,
     version_from_stem,
     versioned_stem,
 )
@@ -32,10 +30,8 @@ __all__ = [
     "manifest_is_corrupt",
     "migrate_legacy_dirs",
     "next_available_version",
-    "original_file",
     "record_version",
     "safe_data_path",
-    "version_exists",
     "version_from_stem",
     "versioned_stem",
 ]

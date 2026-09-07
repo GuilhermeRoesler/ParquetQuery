@@ -8,19 +8,14 @@ import duckdb
 import streamlit as st
 
 from pq.config import LOADABLE_EXTENSIONS, is_cloud_mode
-from pq.db.cached import clear_overview_cache
 from pq.db.connection import register_view
-from pq.db.derived import work_from_clause
-from pq.db.queries import count_from_sql
+from pq.db.derived import working_sql
 from pq.db.schema import get_schema
 from pq.storage import (
     base_name_from,
     build_timeline,
     format_bytes,
     list_data_files,
-    load_manifest,
-    manifest_corrupt_message,
-    manifest_is_corrupt,
     version_from_stem,
 )
 from pq.storage.cloud import (
@@ -28,8 +23,9 @@ from pq.storage.cloud import (
     list_cloud_sources,
     process_sidebar_uploads,
 )
-from pq.ui.components.pagination import clear_sql_count_cache
-from pq.ui.state import get_derived_sql, has_derived_sql, set_derived_sql
+from pq.ui.components.manifest import warn_if_manifest_corrupt
+from pq.ui.components.pagination import cached_sql_count
+from pq.ui.state import get_derived_sql, has_derived_sql, invalidate_data_caches, set_derived_sql
 
 
 def _load_paths(con: duckdb.DuckDBPyConnection, paths: list[Path]) -> None:
@@ -37,10 +33,28 @@ def _load_paths(con: duckdb.DuckDBPyConnection, paths: list[Path]) -> None:
         register_view(con, df_path.stem, df_path)
         if df_path.stem not in st.session_state.loaded_tables:
             st.session_state.loaded_tables.append(df_path.stem)
-        set_derived_sql(df_path.stem, None)
+        set_derived_sql(df_path.stem, None, invalidate=False)
     get_schema.clear()
-    clear_overview_cache()
-    clear_sql_count_cache()
+    invalidate_data_caches()
+
+
+def _render_file_checklist(
+    items: list[tuple[Path, str]],
+    *,
+    key_prefix: str,
+) -> list[Path]:
+    """Checklist compartilhado cloud/local; cada item é (path, rótulo extra)."""
+    selected: list[Path] = []
+    for df_path, extra_label in items:
+        size = format_bytes(df_path.stat().st_size)
+        fmt_label = df_path.suffix.lower().lstrip(".")
+        checked = st.checkbox(
+            f"{df_path.stem}  `{size}`  · {extra_label} · {fmt_label}",
+            key=f"{key_prefix}{df_path.name}_{extra_label}",
+        )
+        if checked:
+            selected.append(df_path)
+    return selected
 
 
 def _render_active_table(
@@ -55,7 +69,12 @@ def _render_active_table(
     active = st.selectbox("Selecionar tabela", loaded, key="active_table")
     if active:
         current_base = base_name_from(active)
-        row_count = count_from_sql(con, work_from_clause(active, get_derived_sql(active)))
+        derived = get_derived_sql(active)
+        row_count = cached_sql_count(
+            con,
+            working_sql(active, derived),
+            cache_key=f"sidebar_{active}",
+        )
         st.caption(f"Base: `{current_base}` · {row_count:,} linhas")
         if has_derived_sql(active):
             st.caption("Colunas calculadas ativas")
@@ -76,12 +95,7 @@ def _render_local_file_picker(
     con: duckdb.DuckDBPyConnection,
     data_dir: Path,
 ) -> tuple[str | None, list[str]]:
-    manifest = load_manifest(data_dir)
-    if manifest_is_corrupt(manifest):
-        st.warning(
-            f"`_manifest.json` corrompido ou inválido: {manifest_corrupt_message(manifest)}. "
-            "Metadados de versão podem estar incompletos até a próxima exportação."
-        )
+    warn_if_manifest_corrupt(data_dir)
 
     data_files = [
         path for path in list_data_files(data_dir) if path.suffix.lower() in LOADABLE_EXTENSIONS
@@ -91,18 +105,11 @@ def _render_local_file_picker(
         st.warning("Nenhum `.parquet` ou `.csv` encontrado em `data/`.")
     else:
         st.subheader("Bases disponíveis")
-        selected: list[Path] = []
-        for df_path in data_files:
-            size = format_bytes(df_path.stat().st_size)
-            version = version_from_stem(df_path.stem)
-            version_label = "original" if version is None else f"v{version}"
-            fmt_label = df_path.suffix.lower().lstrip(".")
-            checked = st.checkbox(
-                f"{df_path.stem}  `{size}`  · {version_label} · {fmt_label}",
-                key=f"chk_{df_path.name}",
-            )
-            if checked:
-                selected.append(df_path)
+        items = []
+        for path in data_files:
+            ver = version_from_stem(path.stem)
+            items.append((path, "original" if ver is None else f"v{ver}"))
+        selected = _render_file_checklist(items, key_prefix="chk_")
 
         if st.button("Carregar selecionados", type="primary", disabled=not selected):
             _load_paths(con, selected)
@@ -141,16 +148,7 @@ def _render_cloud_file_picker(
         st.info("Envie um arquivo ou carregue o dataset de exemplo abaixo.")
     else:
         st.subheader("Arquivos disponíveis")
-        selected: list[Path] = []
-        for df_path, source_label in sources:
-            size = format_bytes(df_path.stat().st_size)
-            fmt_label = df_path.suffix.lower().lstrip(".")
-            checked = st.checkbox(
-                f"{df_path.stem}  `{size}`  · {source_label} · {fmt_label}",
-                key=f"chk_{df_path.name}_{source_label}",
-            )
-            if checked:
-                selected.append(df_path)
+        selected = _render_file_checklist(sources, key_prefix="chk_")
 
         if st.button("Carregar selecionados", type="primary", disabled=not selected):
             _load_paths(con, selected)

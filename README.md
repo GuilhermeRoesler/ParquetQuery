@@ -56,7 +56,7 @@ Os scripts de launch criam/ativam `.venv`, instalam dependências, garantem `dat
 ## Uso do app
 
 1. **Carregar** — sidebar: marque arquivos e clique **Carregar selecionados**
-2. **Explorar** — schema, preview (100 linhas), overview classificatório ou numérico
+2. **Explorar** — schema, preview sob demanda, overview classificatório ou numérico
 3. **SQL** — editor DuckDB; **Ctrl+Enter** ou Executar; tradutor M no expander
 4. **Colunas** — colunas calculadas (SQL ou DAX), renomear, remover, TRY_CAST
 5. **Exportar** — download ou salvar em `data/` como nova versão (`{base}_vN`) ou sobrescrever
@@ -69,7 +69,7 @@ Versões exportadas: `vendas_v1.parquet`, `vendas_v2.parquet`, … O original fi
 
 | Recurso | Descrição |
 |---------|-----------|
-| **Explorar** | Schema, preview paginado e overview de valores (classificatório ou numérico) |
+| **Explorar** | Schema, preview paginado (botão Atualizar) e overview de valores (classificatório ou numérico) |
 | **SQL** | Editor com autocomplete; execução paginada server-side; tradutor M → SQL |
 | **Colunas** | Colunas calculadas (SQL ou DAX), renomear, remover, TRY_CAST |
 | **Exportar** | Download ou salvar em `data/` com versionamento `{base}_vN` e timeline |

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import duckdb
 import streamlit as st
 
 from pq.config import OVERVIEW_AGGS
@@ -10,6 +9,7 @@ from pq.db.cached import get_classificatory_overview_summary, get_numeric_overvi
 from pq.db.sql_utils import quote_ident
 from pq.overview.format_pt import format_number_pt
 from pq.overview.sql import build_classificatory_overview_sql, build_numeric_overview_sql
+from pq.ui.components.errors import show_db_error
 from pq.ui.components.pagination import paginate_sql, show_paginated_dataframe
 from pq.ui.context import WorkContext
 
@@ -37,8 +37,19 @@ def render_explore_tab(ctx: WorkContext) -> None:
         )
         cols_expr = ", ".join(quote_ident(c) for c in preview_cols) if preview_cols else "*"
         preview_sql = f"SELECT {cols_expr} FROM {ctx.work_from_clause}"
-        df_preview, preview_info = paginate_sql(ctx.con, preview_sql, key="preview_page")
-        show_paginated_dataframe(df_preview, preview_info, "preview_page")
+        preview_token = f"{ctx.active}|{ctx.derived_sql or ''}|{cols_expr}"
+
+        if st.button("Atualizar preview", type="primary", key="btn_preview_refresh"):
+            st.session_state.preview_ready_token = preview_token
+
+        if st.session_state.get("preview_ready_token") == preview_token:
+            try:
+                df_preview, preview_info = paginate_sql(ctx.con, preview_sql, key="preview_page")
+                show_paginated_dataframe(df_preview, preview_info, "preview_page")
+            except Exception as exc:
+                show_db_error(exc, prefix="Erro SQL")
+        else:
+            st.info("Clique em **Atualizar preview** para carregar os dados.")
 
     with subtab_overview:
         overview_mode = st.radio(
@@ -72,7 +83,8 @@ def render_explore_tab(ctx: WorkContext) -> None:
                             ctx.active, overview_col, ctx.derived_sql
                         )
                         st.success(
-                            f"{distinct_count:,} valor(es) distinto(s) · {total_rows:,} linhas contabilizadas"
+                            f"{distinct_count:,} valor(es) distinto(s) · "
+                            f"{total_rows:,} linhas contabilizadas"
                         )
                         df_overview_page, overview_info = paginate_sql(
                             ctx.con, overview_sql, key="overview_page", page_size=100
@@ -94,7 +106,8 @@ def render_explore_tab(ctx: WorkContext) -> None:
                             unsafe_allow_html=True,
                         )
                         st.caption(f"{overview_agg} · `{overview_col}`")
-            except duckdb.Error as exc:
-                st.error(f"Erro SQL: {exc}")
             except Exception as exc:
-                st.error(f"Erro ao calcular overview: {exc}")
+                if overview_mode == "Classificatório":
+                    show_db_error(exc, prefix="Erro SQL")
+                else:
+                    show_db_error(exc, prefix="Erro ao calcular overview")

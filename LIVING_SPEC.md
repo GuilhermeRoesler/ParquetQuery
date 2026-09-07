@@ -61,21 +61,23 @@ Aliases fixos: `__work__` (base de trabalho), `__validate__` (validação), `__q
 
 ### Paginação
 
-Dataset grande → **`paginate_sql`** (COUNT cacheado em session state + LIMIT/OFFSET no DuckDB).
+Dataset grande → **`paginate_sql`** (COUNT cacheado em session state via `cached_sql_count` + LIMIT/OFFSET no DuckDB). Mesmo cache de COUNT alimenta o contador da sidebar (`working_sql`).
 
-DataFrame pequeno já em RAM → `paginate`. Invalidar COUNT: `clear_sql_count_cache()` ao mudar derived SQL ou recarregar tabelas.
+Invalidar COUNT: `clear_sql_count_cache()` ao mudar derived SQL ou recarregar tabelas.
+
+Preview na aba Explorar: sob demanda (botão **Atualizar preview**) — evita query a cada rerun das outras abas.
 
 ### Caches Streamlit
 
-`get_connection` → `@st.cache_resource`. Schema e overview → `@st.cache_data` (ttl 300s).
+`get_connection` → `@st.cache_resource`. Schema (`get_schema`), DESCRIBE de derived (`describe_sql_cached`) e overview → `@st.cache_data` (ttl 300s).
 
 **Nunca** passar `DuckDBPyConnection` como argumento de `@st.cache_data` — usar `get_connection()` no corpo.
 
-Invalidação: `get_schema.clear()`, `clear_overview_cache()`, `clear_sql_count_cache()`.
+Invalidação: `get_schema.clear()`, `invalidate_data_caches()` (overview, COUNT, `describe_sql_cached`, schemas do editor).
 
 ### Export
 
-`pq/export/query_export.py`: Parquet/CSV via DuckDB `COPY`; XLSX em chunks (`fetch_df_chunk`, 10k linhas).
+`pq/export/query_export.py`: Parquet/CSV via DuckDB `COPY`; XLSX em chunks (`fetch_df_chunk`, 10k linhas). Após COPY, `row_count` vem do arquivo gerado (não reexecuta a query). Extensão de formato: `pq/export/io.export_extension`.
 
 Limite XLSX: `LIMITE_XLSX = 1_048_576`. Destinos via `safe_data_path` (anti-traversal).
 
@@ -89,11 +91,11 @@ Limite XLSX: `LIMITE_XLSX = 1_048_576`. Destinos via `safe_data_path` (anti-trav
 
 Manifest corrompido: `load_manifest` retorna fallback + aviso na UI; `save_manifest` limpa flags `_corrupt`.
 
-Funções: `pq/storage/data_store.py` — `base_name_from`, `record_version`, `build_timeline`, `migrate_legacy_dirs`.
+Funções: `pq/storage/data_store.py` — `base_name_from`, `record_version`, `build_timeline` (um scan de `data/`), `migrate_legacy_dirs`.
 
 ### Session state (chaves principais)
 
-`loaded_tables`, `derived_by_table`, `last_result_sql`, `sql_editor` / `sql_editor_ctx`, `sql_last_submit_id`, `pg_{key}`, `sql_cnt_*`.
+`loaded_tables`, `derived_by_table`, `last_result_sql`, `sql_editor` / `sql_editor_ctx`, `sql_last_submit_id`, `pg_{key}`, `sql_cnt_*`, `preview_ready_token`, `sql_table_schemas`, `dax_translate_cache`.
 
 Definido em `pq/ui/state.py`; `init_state()` só inicializa defaults — `active_table` vem da sidebar.
 
@@ -113,7 +115,8 @@ Erros compartilhados: `ParseError` em `pq/translators/errors.py`.
 | Nova aba / UI | `pq/ui/tabs/` — manter `WorkContext`; session state em `pq/ui/state.py` |
 | Sidebar / carregar arquivos | `pq/ui/sidebar.py` |
 | SQL derivado / preview | `pq/db/derived.py`; ler/gravar via `pq/ui/state.py` |
-| Paginação | `pq/ui/components/pagination.py` |
+| Paginação | `pq/ui/components/pagination.py` (`paginate_sql`, `cached_sql_count`) |
+| Erros / manifesto UI | `pq/ui/components/errors.py`, `pq/ui/components/manifest.py` |
 | Export / save | `pq/export/query_export.py`, `pq/storage/data_store.py` |
 | Modo cloud / upload demo | `pq/storage/cloud.py`, `pq/config.is_cloud_mode`, `demo/` |
 | Nova função DAX | `pq/translators/dax.py` → `_Parser._translate_call` |

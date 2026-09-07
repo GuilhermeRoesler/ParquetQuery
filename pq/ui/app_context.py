@@ -9,7 +9,7 @@ import streamlit as st
 
 from pq.config import is_cloud_mode
 from pq.db.derived import work_from_clause, working_sql
-from pq.db.schema import describe_sql, get_schema
+from pq.db.schema import describe_sql_cached, get_schema
 from pq.storage import base_name_from
 from pq.ui.context import WorkContext
 from pq.ui.state import get_derived_sql, has_derived_sql
@@ -30,7 +30,7 @@ def build_work_context(
     work_sql = working_sql(active, derived_sql)
 
     if derived_sql:
-        work_schema_df = describe_sql(con, derived_sql)
+        work_schema_df = describe_sql_cached(derived_sql)
     else:
         work_schema_df = schema_df
 

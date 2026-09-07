@@ -98,24 +98,34 @@ def list_data_files(data_dir: Path) -> list[Path]:
     )
 
 
+def _files_by_stem(data_dir: Path) -> dict[str, list[Path]]:
+    index: dict[str, list[Path]] = {}
+    for path in list_data_files(data_dir):
+        index.setdefault(path.stem, []).append(path)
+    return index
+
+
 def files_for_version(data_dir: Path, base: str, version: int) -> list[Path]:
     stem = versioned_stem(base, version)
-    return [path for path in list_data_files(data_dir) if path.stem == stem]
-
-
-def version_exists(data_dir: Path, base: str, version: int) -> bool:
-    return bool(files_for_version(data_dir, base, version))
+    return list(_files_by_stem(data_dir).get(stem, []))
 
 
 def list_version_numbers(data_dir: Path, base: str) -> list[int]:
+    return _version_numbers(base, _files_by_stem(data_dir), load_manifest(data_dir))
+
+
+def _version_numbers(
+    base: str,
+    by_stem: dict[str, list[Path]],
+    manifest: dict[str, Any],
+) -> list[int]:
     versions: set[int] = set()
     prefix = f"{base}_v"
-    for path in list_data_files(data_dir):
-        if path.stem.startswith(prefix):
-            parsed = version_from_stem(path.stem)
+    for stem in by_stem:
+        if stem.startswith(prefix):
+            parsed = version_from_stem(stem)
             if parsed is not None:
                 versions.add(parsed)
-    manifest = load_manifest(data_dir)
     for key in manifest.get("bases", {}).get(base, {}).get("versions", {}):
         if str(key).isdigit():
             versions.add(int(key))
@@ -127,39 +137,33 @@ def next_available_version(data_dir: Path, base: str) -> int:
     return (max(existing) + 1) if existing else 1
 
 
-def original_file(data_dir: Path, base: str) -> Path | None:
-    for ext in DATA_EXTENSIONS:
-        path = data_dir / f"{base}{ext}"
-        if path.exists() and version_from_stem(path.stem) is None and path.stem == base:
-            return path
-    return None
-
-
 def build_timeline(data_dir: Path, base: str) -> list[dict[str, Any]]:
+    """Monta timeline com um único scan de `data/`."""
     manifest = load_manifest(data_dir)
     meta_versions = manifest.get("bases", {}).get(base, {}).get("versions", {})
+    by_stem = _files_by_stem(data_dir)
     timeline: list[dict[str, Any]] = []
 
-    orig = original_file(data_dir, base)
-    if orig:
+    orig_files = list(by_stem.get(base, []))
+    if orig_files:
         timeline.append(
             {
                 "version": 0,
                 "label": "original",
                 "stem": base,
-                "files": [orig],
+                "files": orig_files,
                 "meta": meta_versions.get("0"),
             }
         )
 
-    for version in list_version_numbers(data_dir, base):
-        files = files_for_version(data_dir, base, version)
+    for version in _version_numbers(base, by_stem, manifest):
+        stem = versioned_stem(base, version)
         timeline.append(
             {
                 "version": version,
                 "label": f"v{version}",
-                "stem": versioned_stem(base, version),
-                "files": files,
+                "stem": stem,
+                "files": list(by_stem.get(stem, [])),
                 "meta": meta_versions.get(str(version)),
             }
         )

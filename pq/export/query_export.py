@@ -83,10 +83,20 @@ def export_query_to_path(
         return _export_xlsx_chunked(con, sql, dest, limit=xlsx_limit)
 
     _duckdb_copy_path(con, sql, dest, fmt)
-    query = strip_sql(sql)
-    row = con.execute(f"SELECT COUNT(*) FROM ({query}) __q__").fetchone()
+    return ExportResult(_count_exported_file(con, dest, fmt), False)
+
+
+def _count_exported_file(con: duckdb.DuckDBPyConnection, dest: Path, fmt: str) -> int:
+    """Conta linhas no arquivo gerado (Parquet via metadata; evita reexecutar a query)."""
+    posix = dest.as_posix().replace("'", "''")
+    if fmt == "Parquet":
+        row = con.execute(f"SELECT COUNT(*) FROM read_parquet('{posix}')").fetchone()
+    elif fmt == "CSV":
+        row = con.execute(f"SELECT COUNT(*) FROM read_csv_auto('{posix}')").fetchone()
+    else:
+        raise ValueError(f"Formato não suportado para contagem: {fmt}")
     assert row is not None
-    return ExportResult(int(row[0]), False)
+    return int(row[0])
 
 
 def export_query_to_bytes(

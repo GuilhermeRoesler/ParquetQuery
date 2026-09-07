@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import duckdb
-import pandas as pd
 import streamlit as st
 
 from pq.db.sql_utils import quote_ident
@@ -29,11 +28,3 @@ def duckdb_read_expr(path: Path) -> str:
 def register_view(con: duckdb.DuckDBPyConnection, name: str, path: Path) -> None:
     source = duckdb_read_expr(path)
     con.execute(f"CREATE OR REPLACE VIEW {quote_ident(name)} AS SELECT * FROM {source}")
-
-
-def list_views(con: duckdb.DuckDBPyConnection) -> list[str]:
-    return [row[0] for row in con.execute("SHOW TABLES").fetchall()]
-
-
-def run_query(con: duckdb.DuckDBPyConnection, sql: str) -> pd.DataFrame:
-    return con.execute(sql).df()

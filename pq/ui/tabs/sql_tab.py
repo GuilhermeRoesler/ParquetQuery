@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import duckdb
 import streamlit as st
 from code_editor import code_editor
 
@@ -11,11 +10,11 @@ from pq.db.schema import table_column_names
 from pq.db.sql_utils import strip_sql
 from pq.translators import (
     ParseError,
-    m_parameter_defaults,
-    m_parameter_names,
+    m_parameters,
     m_source_table,
     translate_m_to_sql,
 )
+from pq.ui.components.errors import show_db_error
 from pq.ui.components.pagination import paginate_sql, show_paginated_dataframe
 from pq.ui.components.sql_editor import (
     SQL_EDITOR_COMPONENT_PROPS,
@@ -41,7 +40,27 @@ def _sql_editor_run_requested(editor_response: dict | None, run_btn: bool) -> bo
     return True
 
 
-def _execute_sql_input(con: duckdb.DuckDBPyConnection, sql_text: str) -> None:
+def _table_schemas_for_completions(ctx: WorkContext) -> dict[str, list[str]]:
+    """Schemas de autocomplete com cache em session; reutiliza ctx.col_names na tabela ativa."""
+    cache: dict[str, list[str]] = st.session_state.setdefault("sql_table_schemas", {})
+    result: dict[str, list[str]] = {}
+    live_keys: set[str] = set()
+    for table in ctx.loaded:
+        if table == ctx.active:
+            result[table] = list(ctx.col_names)
+            continue
+        derived = get_derived_sql(table)
+        key = f"{table}|{derived or ''}"
+        live_keys.add(key)
+        if key not in cache:
+            cache[key] = table_column_names(ctx.con, table, derived)
+        result[table] = cache[key]
+    for stale in [k for k in cache if k not in live_keys]:
+        del cache[stale]
+    return result
+
+
+def _execute_sql_input(ctx: WorkContext, sql_text: str) -> None:
     """Executa query na aba SQL (SELECT/WITH paginado; demais comandos direto)."""
     if not sql_text.strip():
         return
@@ -50,17 +69,15 @@ def _execute_sql_input(con: duckdb.DuckDBPyConnection, sql_text: str) -> None:
             query = strip_sql(sql_text)
             stripped = query.upper()
             if stripped.startswith("SELECT") or stripped.startswith("WITH"):
-                df_sql, sql_info = paginate_sql(con, query, key="sql_page")
+                df_sql, sql_info = paginate_sql(ctx.con, query, key="sql_page")
                 st.session_state.last_result_sql = query
                 st.success(f"{sql_info.total:,} linhas no resultado.")
                 show_paginated_dataframe(df_sql, sql_info, "sql_page")
             else:
-                con.execute(query)
+                ctx.con.execute(query)
                 st.success("Comando executado.")
-    except duckdb.Error as exc:
-        st.error(f"Erro SQL: {exc}")
     except Exception as exc:
-        st.error(f"Erro: {exc}")
+        show_db_error(exc, prefix="Erro SQL")
 
 
 def render_sql_tab(ctx: WorkContext) -> None:
@@ -75,10 +92,7 @@ def render_sql_tab(ctx: WorkContext) -> None:
         st.session_state.sql_editor = {"text": default_sql}
 
     sql_code = st.session_state.sql_editor.get("text", default_sql)
-    table_schemas = {
-        table: table_column_names(ctx.con, table, get_derived_sql(table)) for table in ctx.loaded
-    }
-    sql_completions = build_sql_completions(ctx.loaded, table_schemas)
+    sql_completions = build_sql_completions(ctx.loaded, _table_schemas_for_completions(ctx))
 
     st.caption(
         "Sugestões: **Ctrl+Space** · **Ctrl+Enter** executa · "
@@ -101,7 +115,7 @@ def render_sql_tab(ctx: WorkContext) -> None:
     run_btn = col_run.button("Executar", type="primary", key="btn_sql_run")
 
     if _sql_editor_run_requested(editor_response, run_btn):
-        _execute_sql_input(ctx.con, sql_input)
+        _execute_sql_input(ctx, sql_input)
 
     with st.expander("Tradutor Power Query (M)"):
         m_code = st.text_area(
@@ -127,8 +141,7 @@ def render_sql_tab(ctx: WorkContext) -> None:
         m_param_values: dict[str, str] = {}
         if m_code.strip():
             try:
-                m_params = m_parameter_names(m_code)
-                m_defaults = m_parameter_defaults(m_code)
+                m_params, m_defaults = m_parameters(m_code)
             except ParseError:
                 m_params = []
                 m_defaults = {}
