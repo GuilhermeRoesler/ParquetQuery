@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Parquet Query">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1A1D24"/>
+      <stop offset="100%" stop-color="#0E1117"/>
+    </linearGradient>
+  </defs>
+  <!-- rounded tile; outside is true SVG transparency (no fill) -->
+  <rect width="128" height="128" rx="28" ry="28" fill="url(#bg)"/>
+  <!-- columnar parquet bars: amber → Streamlit red -->
+  <rect x="22" y="72" width="16" height="28" rx="3.5" fill="#F59E0B"/>
+  <rect x="42" y="50" width="16" height="50" rx="3.5" fill="#FB923C"/>
+  <rect x="62" y="32" width="16" height="68" rx="3.5" fill="#FF6B4A"/>
+  <rect x="82" y="58" width="16" height="42" rx="3.5" fill="#FF4B4B"/>
+  <!-- magnifying glass -->
+  <circle cx="78" cy="68" r="20" fill="none" stroke="#F3F4F6" stroke-width="6"/>
+  <path d="M92 82 L108 100" fill="none" stroke="#F3F4F6" stroke-width="6" stroke-linecap="round"/>
+  <path d="M68 58 Q74 54 78 58" fill="none" stroke="#E5E7EB" stroke-width="2.5" stroke-linecap="round" opacity="0.85"/>
+  <!-- SQL prompt accent -->
+  <text x="98" y="118" font-family="ui-monospace, Consolas, monospace" font-size="14" font-weight="700" fill="#FBBF24">&gt;_</text>
+</svg>

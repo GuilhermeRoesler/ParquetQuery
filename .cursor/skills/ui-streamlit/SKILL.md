@@ -40,6 +40,7 @@ API derived: `get_derived_sql` / `set_derived_sql` / `has_derived_sql`.
 | Receitas demo | `pq/ui/demo_recipes.py` |
 | Estado | `pq/ui/state.py` |
 | Contexto compartilhado | `pq/ui/app_context.py` |
+| Branding / ícone | `pq/ui/components/brand.py` (`apply_page_logo` + `page_icon`); asset em `assets/icon.png` |
 | Abas | `pq/ui/tabs/` — manter `WorkContext` |
 | Paginação | `pq/ui/components/pagination.py` (`paginate_sql`, `cached_sql_count`) |
 | Erros | `pq/ui/components/errors.py` |

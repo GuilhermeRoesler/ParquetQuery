@@ -59,7 +59,7 @@ def build_work_context(
 
 
 def render_empty_state(*, cloud_mode: bool = False) -> None:
-    st.title("⚡ Parquet Query")
+    st.title("Parquet Query")
     if cloud_mode:
         st.info(
             "Os datasets de exemplo costumam carregar sozinhos. "

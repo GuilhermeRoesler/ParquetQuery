@@ -17,10 +17,11 @@ Streamlit + DuckDB · dados em `data/` · entrada `.parquet`/`.csv` · saída Pa
 - Instalação local alternativa: `pip install -e ".[dev]"`
 - Pacote: `pq/` (`db`, `ui`, `export`, `storage`, `translators`, `overview`)
 - Entrada: `app.py`
+- Ícone: `assets/icon.png` (+ `assets/icon.svg` fonte); `page_icon` em `app.py`
 - Launch: `run.bat` / `run.ps1` / `./run.sh` ou `streamlit run app.py` (detalhes → README)
 - Porta: `scripts/find_free_port.py`
 
-**Release Windows** (usuário leigo): tag `v*` → `.github/workflows/release.yml` → `scripts/build_portable.ps1` empacota Python embeddable 3.11 + deps + app em `dist/ParquetQuery-{versão}-win64.zip`; launcher `Iniciar Parquet Query.bat` na raiz do zip.
+**Release Windows** (usuário leigo): tag `v*` → `.github/workflows/release.yml` → `scripts/build_portable.ps1` empacota Python embeddable 3.11 + deps + app + `assets/` em `dist/ParquetQuery-{versão}-win64.zip`; launcher `Iniciar Parquet Query.bat` na raiz do zip.
 
 **Modo vitrine (Streamlit Community Cloud):** `pq/config.is_cloud_mode` — `PQ_CLOUD_MODE=1` (teste local), vars `STREAMLIT_SHARING` / `STREAMLIT_CLOUD`, ou repo em `/mount/src/`. Upload sidebar (até 50 MB); demo em `demo/` (`vendas_demo` + `clientes_demo`); auto-load dos exemplos na 1ª visita (`cloud_demo_autoload_done`); receitas SQL/DAX/M (`pq/ui/demo_recipes.py`); dir efêmero por sessão (`pq/storage/cloud.py`); export só por download — sem «Salvar em data/». Local inalterado.
 

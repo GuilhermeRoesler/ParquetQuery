@@ -10,6 +10,7 @@ from pq.db.connection import get_connection
 from pq.storage import migrate_legacy_dirs
 from pq.storage.cloud import cloud_upload_dir
 from pq.ui.app_context import build_work_context, render_empty_state
+from pq.ui.components.brand import apply_page_logo, icon_file
 from pq.ui.sidebar import render_sidebar
 from pq.ui.state import init_state
 from pq.ui.tabs.columns import render_columns_tab
@@ -23,10 +24,11 @@ def main() -> None:
 
     st.set_page_config(
         page_title="Parquet Query",
-        page_icon="⚡",
+        page_icon=icon_file() or "⚡",
         layout="wide",
         initial_sidebar_state="expanded",
     )
+    apply_page_logo()
 
     if cloud:
         data_dir = cloud_upload_dir()

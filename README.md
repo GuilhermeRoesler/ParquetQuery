@@ -124,6 +124,7 @@ App publicado em [parquet-query.streamlit.app](https://parquet-query.streamlit.a
 
 ```
 app.py              # Entrada Streamlit
+assets/             # Ícone do app (page_icon / favicon)
 pq/                 # Pacote principal
   db/               # DuckDB — conexão, schema, derived, paginação
   ui/               # Streamlit — sidebar, abas, componentes

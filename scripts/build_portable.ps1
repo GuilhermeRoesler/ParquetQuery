@@ -93,7 +93,8 @@ Write-Step 'Copiando arquivos do app'
 $copyItems = @(
     'app.py',
     'LICENSE',
-    'pq'
+    'pq',
+    'assets'
 )
 foreach ($item in $copyItems) {
     $source = Join-Path $Root $item

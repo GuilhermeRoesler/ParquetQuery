@@ -187,7 +187,7 @@ def render_sidebar(
 ) -> tuple[str | None, list[str]]:
     cloud = is_cloud_mode() if cloud_mode is None else cloud_mode
     with st.sidebar:
-        st.title("⚡ Parquet Query")
+        st.title("Parquet Query")
         if cloud:
             st.caption("Experimente online · Parquet Query")
         else:
