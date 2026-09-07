@@ -113,7 +113,7 @@ try {
     }
 
     $requestedPort = if ($env:STREAMLIT_SERVER_PORT) { $env:STREAMLIT_SERVER_PORT } else { '8501' }
-    $port = (& $venvPython 'find_free_port.py' $requestedPort 2>$null | Out-String).Trim()
+    $port = (& $venvPython 'scripts\find_free_port.py' $requestedPort 2>$null | Out-String).Trim()
     if (-not $port) {
         Exit-WithError "Nenhuma porta livre a partir de $requestedPort."
     }

@@ -1,6 +1,6 @@
 # Parquet Query — Spec
 
-> **Última atualização:** 2026-09-01
+> **Última atualização:** 2026-09-07
 
 Spec enxuto para IA e contribuidores. Guia de usuário, CI e detalhes de UI → **[README.md](README.md)**.
 
@@ -20,7 +20,9 @@ Spec enxuto para IA e contribuidores. Guia de usuário, CI e detalhes de UI → 
 
 Streamlit + DuckDB · dados em `data/` · entrada `.parquet`/`.csv` · saída Parquet/CSV/XLSX.
 
-Executar: `run.bat` / `run.ps1` / `./run.sh` ou `streamlit run app.py`. Detalhes de launch → README.
+Licença: MIT (`LICENSE`). Dependências de runtime/dev declaradas em `pyproject.toml`; `requirements.txt` / `requirements-dev.txt` espelham para Streamlit Cloud, launchers e build portátil. Instalação local alternativa: `pip install -e ".[dev]"`.
+
+Executar: `run.bat` / `run.ps1` / `./run.sh` ou `streamlit run app.py`. Detalhes de launch → README. Utilitário de porta: `scripts/find_free_port.py`.
 
 Release Windows (usuário leigo): tag `v*` → workflow `.github/workflows/release.yml` → `scripts/build_portable.ps1` empacota Python embeddable 3.11 + deps + app em `dist/ParquetQuery-{versão}-win64.zip`; launcher `Iniciar Parquet Query.bat` na raiz do zip.
 
@@ -28,13 +30,11 @@ Release Windows (usuário leigo): tag `v*` → workflow `.github/workflows/relea
 
 Pacote principal: `pq/` (`db`, `ui`, `export`, `storage`, `translators`). Entrada: `app.py`.
 
-Shims legados na raiz (não duplicar lógica): `data_store.py`, `pq_dax_translator.py`, `pq_m_translator.py`.
-
 ---
 
 ## Fluxo de dados
 
-Sidebar carrega arquivos → `register_view(stem, path)` cria view DuckDB. Aba **Colunas** empilha transformações em `derived_by_table`. Abas consultam via `work_from(table)`. **Exportar** grava `{base}_vN.ext` e atualiza `_manifest.json`.
+Sidebar carrega arquivos → `register_view(stem, path)` cria view DuckDB. Aba **Colunas** empilha transformações em `derived_by_table`. Abas consultam via `work_from_clause(table, derived_sql)`. **Exportar** grava `{base}_vN.ext` e atualiza `_manifest.json`.
 
 1. Arquivo em `data/` → view `"stem"` via `read_parquet` / `read_csv_auto`
 2. Sem transformações: `FROM "stem"`
@@ -53,8 +53,8 @@ Transformações **não** alteram o Parquet — acumulam SELECT em `st.session_s
 
 | Onde | Função |
 |------|--------|
-| `pq/db/derived.py` | `work_from_clause`, `build_derived_select`, `working_sql` |
-| `pq/ui/state.py` | Wrappers (`work_from`, `set_derived_sql`, …) + session state |
+| `pq/db/derived.py` | `work_from_clause`, `build_derived_select`, `working_sql`, `default_preview_sql` |
+| `pq/ui/state.py` | Session state: `get_derived_sql` / `set_derived_sql` / `has_derived_sql` / `init_state` |
 | `pq/db/sql_utils.py` | `validate_derived_sql` — executar **antes** de aplicar |
 
 Aliases fixos: `__work__` (base de trabalho), `__validate__` (validação), `__q__` (paginação).
@@ -110,9 +110,9 @@ Erros compartilhados: `ParseError` em `pq/translators/errors.py`.
 
 | Tarefa | Onde |
 |--------|------|
-| Nova aba / UI | `pq/ui/tabs/` — manter `WorkContext`, helpers de `pq/ui/state.py` |
+| Nova aba / UI | `pq/ui/tabs/` — manter `WorkContext`; session state em `pq/ui/state.py` |
 | Sidebar / carregar arquivos | `pq/ui/sidebar.py` |
-| SQL derivado / preview | `pq/db/derived.py`, `pq/ui/state.py` |
+| SQL derivado / preview | `pq/db/derived.py`; ler/gravar via `pq/ui/state.py` |
 | Paginação | `pq/ui/components/pagination.py` |
 | Export / save | `pq/export/query_export.py`, `pq/storage/data_store.py` |
 | Modo cloud / upload demo | `pq/storage/cloud.py`, `pq/config.is_cloud_mode`, `demo/` |
@@ -131,6 +131,7 @@ Após mudanças: atualizar este spec (e README se user-facing); `python -m pytes
 - Identificadores SQL: `quote_ident()`; SQL final: `strip_sql()` (remove `;` trailing)
 - UI em português; type hints; diff mínimo; sem refatoração não solicitada
 - Lint: ruff (E, F, I, UP, B, SIM, RUF), linha máx. 100; formato via `ruff format`
+- Tipagem: mypy no núcleo (`storage`, `export`, `db` exceto UI); `pq/ui/` e `pq/translators/` excluídos/ignorados
 
 ---
 

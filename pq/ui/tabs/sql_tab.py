@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import duckdb
 import streamlit as st
 from code_editor import code_editor
 
+from pq.db.derived import default_preview_sql
 from pq.db.schema import table_column_names
+from pq.db.sql_utils import strip_sql
 from pq.translators import (
     ParseError,
     m_parameter_defaults,
@@ -13,6 +16,7 @@ from pq.translators import (
     m_source_table,
     translate_m_to_sql,
 )
+from pq.ui.components.pagination import paginate_sql, show_paginated_dataframe
 from pq.ui.components.sql_editor import (
     SQL_EDITOR_COMPONENT_PROPS,
     SQL_EDITOR_OPTIONS,
@@ -21,19 +25,49 @@ from pq.ui.components.sql_editor import (
     inject_sql_editor_layout_css,
 )
 from pq.ui.context import WorkContext
-from pq.ui.state import (
-    execute_sql_input,
-    get_default_preview_sql,
-    get_derived_sql,
-    sql_editor_run_requested,
-)
+from pq.ui.state import get_derived_sql
+
+
+def _sql_editor_run_requested(editor_response: dict | None, run_btn: bool) -> bool:
+    """Botão Executar ou Ctrl+Enter (submit do code_editor, uma vez por id)."""
+    if run_btn:
+        return True
+    if not editor_response or editor_response.get("type") != "submit":
+        return False
+    submit_id = editor_response.get("id") or ""
+    if not submit_id or submit_id == st.session_state.get("sql_last_submit_id"):
+        return False
+    st.session_state.sql_last_submit_id = submit_id
+    return True
+
+
+def _execute_sql_input(con: duckdb.DuckDBPyConnection, sql_text: str) -> None:
+    """Executa query na aba SQL (SELECT/WITH paginado; demais comandos direto)."""
+    if not sql_text.strip():
+        return
+    try:
+        with st.spinner("Executando..."):
+            query = strip_sql(sql_text)
+            stripped = query.upper()
+            if stripped.startswith("SELECT") or stripped.startswith("WITH"):
+                df_sql, sql_info = paginate_sql(con, query, key="sql_page")
+                st.session_state.last_result_sql = query
+                st.success(f"{sql_info.total:,} linhas no resultado.")
+                show_paginated_dataframe(df_sql, sql_info, "sql_page")
+            else:
+                con.execute(query)
+                st.success("Comando executado.")
+    except duckdb.Error as exc:
+        st.error(f"Erro SQL: {exc}")
+    except Exception as exc:
+        st.error(f"Erro: {exc}")
 
 
 def render_sql_tab(ctx: WorkContext) -> None:
     st.header("Editor SQL")
     inject_sql_editor_layout_css()
 
-    default_sql = get_default_preview_sql(ctx.active)
+    default_sql = default_preview_sql(ctx.active, ctx.derived_sql)
 
     if isinstance(st.session_state.get("sql_editor"), str):
         st.session_state.sql_editor = {"text": st.session_state.sql_editor}
@@ -66,8 +100,8 @@ def render_sql_tab(ctx: WorkContext) -> None:
     col_run, _col_clear = st.columns([1, 5])
     run_btn = col_run.button("Executar", type="primary", key="btn_sql_run")
 
-    if sql_editor_run_requested(editor_response, run_btn):
-        execute_sql_input(ctx.con, sql_input)
+    if _sql_editor_run_requested(editor_response, run_btn):
+        _execute_sql_input(ctx.con, sql_input)
 
     with st.expander("Tradutor Power Query (M)"):
         m_code = st.text_area(

@@ -20,7 +20,7 @@ Histórico no git — **não** manter changelog nem versão no spec.
 
 - Decisões técnicas completas em `LIVING_SPEC.md` (~130 linhas)
 - App Streamlit + DuckDB; dados em `data/` com versionamento `{base}_vN`
-- SQL derivado: `derived_by_table` + `work_from` — ver spec
+- SQL derivado: `derived_by_table` + `work_from_clause` — ver spec
 - Paginação pesada: `paginate_sql`, não DataFrame inteiro
 - Caches `@st.cache_data`: nunca passar conexão DuckDB como argumento
 - UI em português; diff mínimo; sem refatoração não solicitada

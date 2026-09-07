@@ -1,9 +1,36 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "parquet-query"
 version = "1.6.5"
 description = "Exploração de arquivos Parquet/CSV com DuckDB e Streamlit"
 readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.9"
+authors = [{ name = "Guilherme Roesler" }]
+dependencies = [
+    "pandas>=2.0",
+    "pyarrow>=14.0",
+    "openpyxl>=3.1",
+    "duckdb>=1.0",
+    "streamlit>=1.35",
+    "streamlit-code-editor>=0.1.22",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.8.0",
+    "mypy>=1.11",
+    "pip-audit>=2.7",
+    "pre-commit>=3.8",
+]
+
+[tool.setuptools.packages.find]
+include = ["pq*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -34,17 +61,16 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 "pq/db/schema.py" = ["SIM108"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_ignores = true
 ignore_missing_imports = true
 exclude = ["pq/ui/"]
 
+# Núcleo tipado: storage, export, derived, sql_utils, queries, overview, config.
+# Tradutores e app ainda com ignore (parsers / Streamlit).
 [[tool.mypy.overrides]]
 module = [
-    "pq.db.connection",
-    "pq.db.schema",
-    "pq.db.cached",
     "pq.translators.*",
     "app",
 ]

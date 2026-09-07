@@ -10,6 +10,7 @@ import streamlit as st
 from pq.config import LOADABLE_EXTENSIONS, is_cloud_mode
 from pq.db.cached import clear_overview_cache
 from pq.db.connection import register_view
+from pq.db.derived import work_from_clause
 from pq.db.queries import count_from_sql
 from pq.db.schema import get_schema
 from pq.storage import (
@@ -28,7 +29,7 @@ from pq.storage.cloud import (
     process_sidebar_uploads,
 )
 from pq.ui.components.pagination import clear_sql_count_cache
-from pq.ui.state import has_derived_sql, set_derived_sql, work_from
+from pq.ui.state import get_derived_sql, has_derived_sql, set_derived_sql
 
 
 def _load_paths(con: duckdb.DuckDBPyConnection, paths: list[Path]) -> None:
@@ -54,7 +55,7 @@ def _render_active_table(
     active = st.selectbox("Selecionar tabela", loaded, key="active_table")
     if active:
         current_base = base_name_from(active)
-        row_count = count_from_sql(con, work_from(active))
+        row_count = count_from_sql(con, work_from_clause(active, get_derived_sql(active)))
         st.caption(f"Base: `{current_base}` · {row_count:,} linhas")
         if has_derived_sql(active):
             st.caption("Colunas calculadas ativas")

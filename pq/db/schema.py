@@ -29,4 +29,4 @@ def table_column_names(
         df = describe_sql(con, derived_sql)
     else:
         df = get_schema(table)
-    return df["column_name"].tolist()
+    return [str(name) for name in df["column_name"].tolist()]

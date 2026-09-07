@@ -2,7 +2,7 @@
 
 Aplicação **Streamlit** para explorar arquivos **Parquet** e **CSV** com **DuckDB** — SQL ad-hoc, colunas calculadas (DuckDB ou DAX do Power BI), tradutor Power Query (M) e exportação versionada em `data/`.
 
-**Requisitos:** Python 3.9+ · Windows, Linux ou macOS
+**Requisitos:** Python 3.9+ · Windows, Linux ou macOS · Licença [MIT](LICENSE)
 
 ---
 
@@ -87,7 +87,7 @@ run.ps1 -Dev            # Windows
 # Ou manualmente
 python -m venv .venv
 .venv\Scripts\activate          # Windows
-pip install -r requirements.txt -r requirements-dev.txt
+pip install -e ".[dev]"         # ou: -r requirements.txt -r requirements-dev.txt
 
 python -m pytest tests/ -q --cov=pq
 python -m ruff check .
@@ -97,6 +97,8 @@ pre-commit install   # opcional: hooks locais espelhando o CI
 ```
 
 CI (GitHub Actions): Ruff (lint + format), pytest em Python 3.9/3.11/3.12 com cobertura mínima, mypy e `pip-audit`. Dependabot abre PRs semanais de dependências.
+
+Dependências: fonte de verdade em `pyproject.toml`; `requirements.txt` / `requirements-dev.txt` são espelhos (Streamlit Cloud e build portátil).
 
 ### Publicar release (Windows portátil)
 
@@ -129,13 +131,13 @@ pq/                 # Pacote principal
   storage/          # Versionamento + _manifest.json
   translators/      # DAX e M → SQL
   overview/         # SQL de overview, formatação pt-BR
+scripts/            # Build portátil, find_free_port, gen_demo
 demo/               # Dataset de exemplo (modo vitrine / Streamlit Cloud)
 data/               # Arquivos + _manifest.json
-tests/              # pytest (56 testes)
+tests/              # pytest
+LICENSE             # MIT
 LIVING_SPEC.md      # Decisões técnicas para IA/contribuidores
 ```
-
-Shims na raiz: `data_store.py`, `pq_dax_translator.py`, `pq_m_translator.py`.
 
 ---
 

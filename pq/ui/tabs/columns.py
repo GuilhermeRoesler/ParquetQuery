@@ -6,11 +6,12 @@ import duckdb
 import streamlit as st
 
 from pq.config import CAST_TYPES
+from pq.db.derived import build_derived_select
 from pq.db.sql_utils import quote_ident, validate_derived_sql
 from pq.translators import ParseError, normalize_power_formula, translate_power_column
 from pq.ui.components.pagination import paginate_sql, show_paginated_dataframe
 from pq.ui.context import WorkContext
-from pq.ui.state import build_derived, set_derived_sql
+from pq.ui.state import set_derived_sql
 
 
 def _apply_derived(ctx: WorkContext, new_sql: str, success_msg: str) -> None:
@@ -55,9 +56,10 @@ def render_columns_tab(ctx: WorkContext) -> None:
             )
             if st.button("Adicionar", key="btn_add_col"):
                 if new_col_name and new_col_expr:
-                    new_sql = build_derived(
+                    new_sql = build_derived_select(
                         ctx.active,
                         f"*, ({new_col_expr}) AS {quote_ident(new_col_name)}",
+                        ctx.derived_sql,
                     )
                     _apply_derived(ctx, new_sql, f"Coluna `{new_col_name}` adicionada.")
         else:
@@ -103,9 +105,10 @@ Aging_Atual = IF('fValorNotas'[Dias em Atraso]>360,"9_Acima 361",
                         col_name, duck_expr = translate_power_column(
                             normalize_power_formula(pq_formula)
                         )
-                        new_sql = build_derived(
+                        new_sql = build_derived_select(
                             ctx.active,
                             f"*, ({duck_expr}) AS {quote_ident(col_name)}",
+                            ctx.derived_sql,
                         )
                         _apply_derived(
                             ctx,
@@ -126,7 +129,7 @@ Aging_Atual = IF('fValorNotas'[Dias em Atraso]>360,"9_Acima 361",
                     else quote_ident(c)
                     for c in derived_cols
                 )
-                new_sql = build_derived(ctx.active, col_list)
+                new_sql = build_derived_select(ctx.active, col_list, ctx.derived_sql)
                 _apply_derived(ctx, new_sql, f"`{rename_src}` renomeada para `{rename_dst}`.")
 
     elif op == "Remover colunas":
@@ -135,7 +138,7 @@ Aging_Atual = IF('fValorNotas'[Dias em Atraso]>360,"9_Acima 361",
             if drop_cols:
                 keep = [c for c in derived_cols if c not in drop_cols]
                 col_list = ", ".join(quote_ident(c) for c in keep)
-                new_sql = build_derived(ctx.active, col_list)
+                new_sql = build_derived_select(ctx.active, col_list, ctx.derived_sql)
                 _apply_derived(ctx, new_sql, f"{len(drop_cols)} coluna(s) removida(s).")
 
     elif op == "Cast de tipo":
@@ -148,7 +151,7 @@ Aging_Atual = IF('fValorNotas'[Dias em Atraso]>360,"9_Acima 361",
                 else quote_ident(c)
                 for c in derived_cols
             )
-            new_sql = build_derived(ctx.active, col_list)
+            new_sql = build_derived_select(ctx.active, col_list, ctx.derived_sql)
             _apply_derived(ctx, new_sql, f"`{cast_col}` convertida para `{cast_type}`.")
 
     st.markdown("---")

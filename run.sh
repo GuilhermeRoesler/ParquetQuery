@@ -66,7 +66,7 @@ fi
 mkdir -p data
 
 REQUESTED_PORT="${STREAMLIT_SERVER_PORT:-8501}"
-STREAMLIT_SERVER_PORT="$(python find_free_port.py "$REQUESTED_PORT")"
+STREAMLIT_SERVER_PORT="$(python scripts/find_free_port.py "$REQUESTED_PORT")"
 
 echo
 if [[ "$STREAMLIT_SERVER_PORT" != "$REQUESTED_PORT" ]]; then

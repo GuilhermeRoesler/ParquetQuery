@@ -21,6 +21,8 @@ def get_classificatory_overview_summary(
     con = get_connection()
     sql = build_classificatory_overview_summary_sql(table, col, derived_sql)
     row = con.execute(sql).fetchone()
+    if row is None:
+        return 0, 0
     return int(row[0]), int(row[1])
 
 
@@ -34,7 +36,8 @@ def get_numeric_overview(
 ) -> object:
     con = get_connection()
     sql = build_numeric_overview_sql(table, col, agg, dtype, derived_sql)
-    return con.execute(sql).fetchone()[0]
+    row = con.execute(sql).fetchone()
+    return None if row is None else row[0]
 
 
 def clear_overview_cache() -> None:

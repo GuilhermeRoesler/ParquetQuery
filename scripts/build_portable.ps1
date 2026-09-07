@@ -92,10 +92,7 @@ Invoke-Checked $pyExe '-m' 'pip' 'install' '-r' $requirements '--no-warn-script-
 Write-Step 'Copiando arquivos do app'
 $copyItems = @(
     'app.py',
-    'find_free_port.py',
-    'data_store.py',
-    'pq_dax_translator.py',
-    'pq_m_translator.py',
+    'LICENSE',
     'pq'
 )
 foreach ($item in $copyItems) {
@@ -105,6 +102,14 @@ foreach ($item in $copyItems) {
     }
     Copy-Item -Path $source -Destination (Join-Path $Staging $item) -Recurse -Force
 }
+
+$scriptsDir = Join-Path $Staging 'scripts'
+New-Item -ItemType Directory -Path $scriptsDir -Force | Out-Null
+$findPortSrc = Join-Path $Root 'scripts\find_free_port.py'
+if (-not (Test-Path $findPortSrc)) {
+    throw 'Arquivo obrigatorio ausente: scripts\find_free_port.py'
+}
+Copy-Item -Path $findPortSrc -Destination (Join-Path $scriptsDir 'find_free_port.py') -Force
 
 Write-Step 'Gerando launchers e LEIA-ME'
 $launcherPs1 = @'
@@ -131,7 +136,7 @@ Write-Host ' Parquet Query'
 Write-Host ' ============='
 Write-Host ''
 
-$port = (& $Python (Join-Path $Root 'find_free_port.py') 8501 2>$null | Out-String).Trim()
+$port = (& $Python (Join-Path $Root 'scripts\find_free_port.py') 8501 2>$null | Out-String).Trim()
 if (-not $port) {
     Write-Host '[ERRO] Nenhuma porta livre a partir de 8501.' -ForegroundColor Red
     pause

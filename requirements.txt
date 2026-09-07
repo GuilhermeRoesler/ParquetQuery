@@ -1,3 +1,6 @@
+# Espelho de [project.dependencies] em pyproject.toml
+# (Streamlit Cloud, build portátil e scripts de launch).
+# Dev local alternativo: pip install -e ".[dev]"
 pandas>=2.0
 pyarrow>=14.0
 openpyxl>=3.1
