@@ -42,18 +42,22 @@ def _translate_dax_formula(formula: str) -> tuple[str, str]:
 
 
 def render_columns_tab(ctx: WorkContext) -> None:
-    st.header("Transformar Colunas")
+    st.header("Colunas")
+    st.caption("Transformações na tabela ativa — não alteram o arquivo em disco.")
+    if ctx.has_derived:
+        st.badge("Colunas calculadas ativas", color="orange")
 
     derived_cols = ctx.col_names
 
     op = st.radio(
         "Operação",
-        ["Adicionar coluna calculada", "Renomear coluna", "Remover colunas", "Cast de tipo"],
+        ["Adicionar", "Renomear", "Remover", "Cast"],
         horizontal=True,
-        key="col_op",
+        key="col_op_short",
+        help="Adicionar coluna calculada, renomear, remover ou converter tipo (TRY_CAST).",
     )
 
-    if op == "Adicionar coluna calculada":
+    if op == "Adicionar":
         expr_mode = st.radio(
             "Tipo de expressão",
             ["DuckDB", "Power BI (DAX)"],
@@ -137,7 +141,7 @@ Aging_Atual = IF('fValorNotas'[Dias em Atraso]>360,"9_Acima 361",
                     except ParseError as exc:
                         st.error(f"Fórmula inválida: {exc}")
 
-    elif op == "Renomear coluna":
+    elif op == "Renomear":
         rename_src = st.selectbox("Coluna original", derived_cols, key="rename_src")
         rename_dst = st.text_input("Novo nome", key="rename_dst")
         if st.button("Renomear", key="btn_rename"):
@@ -151,7 +155,7 @@ Aging_Atual = IF('fValorNotas'[Dias em Atraso]>360,"9_Acima 361",
                 new_sql = build_derived_select(ctx.active, col_list, ctx.derived_sql)
                 _apply_derived(ctx, new_sql, f"`{rename_src}` renomeada para `{rename_dst}`.")
 
-    elif op == "Remover colunas":
+    elif op == "Remover":
         drop_cols = st.multiselect("Colunas a remover", derived_cols, key="drop_cols")
         if st.button("Remover", key="btn_drop"):
             if drop_cols:
@@ -160,7 +164,7 @@ Aging_Atual = IF('fValorNotas'[Dias em Atraso]>360,"9_Acima 361",
                 new_sql = build_derived_select(ctx.active, col_list, ctx.derived_sql)
                 _apply_derived(ctx, new_sql, f"{len(drop_cols)} coluna(s) removida(s).")
 
-    elif op == "Cast de tipo":
+    elif op == "Cast":
         cast_col = st.selectbox("Coluna", derived_cols, key="cast_col")
         cast_type = st.selectbox("Tipo destino", CAST_TYPES, key="cast_type")
         if st.button("Aplicar cast", key="btn_cast"):

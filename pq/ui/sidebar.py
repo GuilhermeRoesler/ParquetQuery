@@ -63,12 +63,31 @@ def _render_file_checklist(
     return selected
 
 
+def _prefer_originals(paths: list[Path]) -> list[Path]:
+    """Originais (sem `_vN`) primeiro — útil no auto-load local."""
+    return sorted(
+        paths,
+        key=lambda p: (0 if version_from_stem(p.stem) is None else 1, p.name),
+    )
+
+
+def _render_glossary() -> None:
+    with st.expander("Glossário", expanded=False):
+        st.markdown(
+            "- **Tabela** — arquivo carregado no DuckDB (nome = stem do arquivo)\n"
+            "- **Base** — nome sem sufixo de versão (`vendas` em `vendas_v2`)\n"
+            "- **Versão** — exportação em `data/` como `{base}_vN`\n"
+            "- **Colunas calculadas** — transformações da aba Colunas "
+            "(não alteram o arquivo no disco)"
+        )
+
+
 def _render_active_table(
     con: duckdb.DuckDBPyConnection, data_dir: Path
 ) -> tuple[str | None, list[str]]:
     loaded = st.session_state.loaded_tables
     if not loaded:
-        st.info("Carregue ao menos um arquivo.")
+        st.info("Abra um arquivo acima para começar.")
         return None, loaded
 
     st.subheader("Tabela ativa")
@@ -83,7 +102,8 @@ def _render_active_table(
         )
         st.caption(f"Base: `{current_base}` · {row_count:,} linhas")
         if has_derived_sql(active):
-            st.caption("Colunas calculadas ativas")
+            st.badge("Colunas calculadas ativas", color="orange")
+            st.caption("Exportações e o preview usam estas transformações.")
 
         timeline = build_timeline(data_dir, current_base)
         if timeline:
@@ -97,6 +117,16 @@ def _render_active_table(
     return active, loaded
 
 
+def _render_open_button(con: duckdb.DuckDBPyConnection, selected: list[Path]) -> None:
+    """Botão único: 'Abrir arquivo' (1) ou 'Carregar selecionados' (vários)."""
+    n = len(selected)
+    label = "Abrir arquivo" if n <= 1 else f"Carregar selecionados ({n})"
+    if st.button(label, type="primary", disabled=not selected, key="btn_open_files"):
+        _load_paths(con, selected)
+        st.toast(f"{n} tabela(s) aberta(s).")
+        st.rerun()
+
+
 def _render_local_file_picker(
     con: duckdb.DuckDBPyConnection,
     data_dir: Path,
@@ -107,23 +137,30 @@ def _render_local_file_picker(
         path for path in list_data_files(data_dir) if path.suffix.lower() in LOADABLE_EXTENSIONS
     ]
 
+    # Primeira visita local: abre o primeiro original disponível sem clique.
+    if not st.session_state.get("local_autoload_done"):
+        st.session_state.local_autoload_done = True
+        if data_files and not st.session_state.loaded_tables:
+            first = _prefer_originals(data_files)[:1]
+            _load_paths(con, first)
+            st.toast(f"Arquivo aberto: `{first[0].stem}`")
+            st.rerun()
+
     if not data_files:
         st.warning("Nenhum `.parquet` ou `.csv` encontrado em `data/`.")
     else:
-        st.subheader("Bases disponíveis")
+        st.subheader("Arquivos em data/")
         items = []
         for path in data_files:
             ver = version_from_stem(path.stem)
             items.append((path, "original" if ver is None else f"v{ver}"))
         selected = _render_file_checklist(items, key_prefix="chk_")
-
-        if st.button("Carregar selecionados", type="primary", disabled=not selected):
-            _load_paths(con, selected)
-            st.success(f"{len(selected)} tabela(s) carregada(s).")
-            st.rerun()
+        _render_open_button(con, selected)
 
     st.markdown("---")
-    return _render_active_table(con, data_dir)
+    active, loaded = _render_active_table(con, data_dir)
+    _render_glossary()
+    return active, loaded
 
 
 def _render_cloud_file_picker(
@@ -169,14 +206,12 @@ def _render_cloud_file_picker(
     else:
         st.subheader("Arquivos disponíveis")
         selected = _render_file_checklist(sources, key_prefix="chk_", label_as_title=True)
-
-        if st.button("Carregar selecionados", type="primary", disabled=not selected):
-            _load_paths(con, selected)
-            st.success(f"{len(selected)} tabela(s) carregada(s).")
-            st.rerun()
+        _render_open_button(con, selected)
 
     st.markdown("---")
-    return _render_active_table(con, data_dir)
+    active, loaded = _render_active_table(con, data_dir)
+    _render_glossary()
+    return active, loaded
 
 
 def render_sidebar(

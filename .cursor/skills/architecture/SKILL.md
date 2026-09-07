@@ -34,7 +34,7 @@ Launchers: `Iniciar Parquet Query.bat` (Windows) / `iniciar-parquet-query.sh` (U
 
 **Instalador Windows:** monta sobre o staging do ZIP; instala em `%LOCALAPPDATA%\Programs\Parquet Query` (sem admin; `PrivilegesRequired=lowest`); atalho no menu Iniciar; CI baixa Inno Setup 6.7.3 e exige `-RequireInstaller`. Build local sem Inno: `-SkipInstaller` (só ZIP). Ícone: `assets/icon.ico`.
 
-**Modo vitrine (Streamlit Community Cloud):** `pq/config.is_cloud_mode` — `PQ_CLOUD_MODE=1` (teste local), vars `STREAMLIT_SHARING` / `STREAMLIT_CLOUD`, ou repo em `/mount/src/`. Upload sidebar (até 50 MB); demo em `demo/` (`vendas_demo` + `clientes_demo`); auto-load dos exemplos na 1ª visita (`cloud_demo_autoload_done`); receitas SQL/DAX/M (`pq/ui/demo_recipes.py`); dir efêmero por sessão (`pq/storage/cloud.py`); export só por download — sem «Salvar em data/». Local inalterado.
+**Modo vitrine (Streamlit Community Cloud):** `pq/config.is_cloud_mode` — `PQ_CLOUD_MODE=1` (teste local), vars `STREAMLIT_SHARING` / `STREAMLIT_CLOUD`, ou repo em `/mount/src/`. Upload sidebar (até 50 MB); demo em `demo/` (`vendas_demo` + `clientes_demo`); auto-load dos exemplos na 1ª visita (`cloud_demo_autoload_done`); receitas SQL/DAX/M (`pq/ui/demo_recipes.py`); dir efêmero por sessão (`pq/storage/cloud.py`); export só por download — sem «Salvar em data/». Modo local: auto-abertura do 1º original em `data/` (`local_autoload_done`).
 
 ## Fluxo de dados
 
@@ -64,7 +64,7 @@ Aliases fixos: `__work__` (trabalho), `__validate__` (validação), `__q__` (pag
 Dataset grande → **`paginate_sql`** (COUNT cacheado via `cached_sql_count` + LIMIT/OFFSET). Não materializar DataFrame inteiro. O mesmo COUNT alimenta o contador da sidebar (`working_sql`).
 
 - Invalidar COUNT: `clear_sql_count_cache()` ao mudar derived SQL ou recarregar tabelas
-- Preview Explorar: sob demanda (botão **Atualizar preview**)
+- Preview Explorar: default `*` (todas as colunas) carrega a 1ª página automaticamente; seleção customizada exige **Atualizar preview**
 
 ## Caches Streamlit
 
@@ -87,7 +87,7 @@ Invalidação: `get_schema.clear()`, `invalidate_data_caches()` (overview, COUNT
 | Paginação | `pq/ui/components/pagination.py` (`paginate_sql`, `cached_sql_count`) |
 | Erros / manifesto UI | `pq/ui/components/errors.py`, `pq/ui/components/manifest.py` |
 | Export / save | `pq/export/query_export.py`, `pq/storage/data_store.py` |
-| Modo cloud / demo | `pq/storage/cloud.py`, `pq/config.is_cloud_mode`, `demo/`, `pq/ui/demo_recipes.py`, auto-load em `pq/ui/sidebar.py` |
+| Modo cloud / demo | `pq/storage/cloud.py`, `pq/config.is_cloud_mode`, `demo/`, `pq/ui/demo_recipes.py`, auto-load em `pq/ui/sidebar.py` (`cloud_demo_autoload_done`; local: `local_autoload_done`) |
 | Nova função DAX | `pq/translators/dax.py` → `_Parser._translate_call` |
 | Novo passo M | `pq/translators/m.py` → `_translate_step` |
 | Novo formato de arquivo | `pq/config.LOADABLE_EXTENSIONS`, `pq/db/connection.duckdb_read_expr`, `pq/export/io` |

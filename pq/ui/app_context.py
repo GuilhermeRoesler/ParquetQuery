@@ -68,8 +68,8 @@ def render_empty_state(*, cloud_mode: bool = False) -> None:
     st.title("Parquet Query")
     if cloud_mode:
         st.info(
-            "Os datasets de exemplo costumam carregar sozinhos. "
-            "Se a sidebar estiver vazia, marque um arquivo e clique **Carregar selecionados**, "
+            "Os datasets de exemplo costumam abrir sozinhos. "
+            "Se a sidebar estiver vazia, marque um arquivo e clique **Abrir arquivo**, "
             "ou envie um `.parquet`/`.csv`."
         )
         st.caption(
@@ -82,6 +82,7 @@ def render_empty_state(*, cloud_mode: bool = False) -> None:
         render_demo_recipes_panel()
     else:
         st.info(
-            "Selecione e carregue um arquivo `.parquet` ou `.csv` em `data/` "
-            "na barra lateral para começar."
+            "Coloque `.parquet` ou `.csv` em `data/`. "
+            "Na primeira visita o app abre o primeiro arquivo sozinho; "
+            "depois use **Abrir arquivo** na barra lateral."
         )

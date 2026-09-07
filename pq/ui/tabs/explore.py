@@ -17,7 +17,8 @@ from pq.ui.context import WorkContext
 def render_explore_tab(ctx: WorkContext) -> None:
     st.header(f"Explorar — {ctx.active}")
     if ctx.has_derived:
-        st.caption("Exibindo tabela com colunas calculadas da aba Colunas.")
+        st.badge("Colunas calculadas ativas", color="orange")
+        st.caption("Exibindo a tabela com transformações da aba Colunas.")
 
     subtab_schema, subtab_preview, subtab_overview = st.tabs(
         ["Schema", "Preview", "Overview de valores"]
@@ -39,8 +40,12 @@ def render_explore_tab(ctx: WorkContext) -> None:
         preview_sql = f"SELECT {cols_expr} FROM {ctx.work_from_clause}"
         preview_token = f"{ctx.active}|{ctx.derived_sql or ''}|{cols_expr}"
 
-        if st.button("Atualizar preview", type="primary", key="btn_preview_refresh"):
+        # Default (todas as colunas): 1ª página automática. Seleção customizada → botão.
+        if cols_expr == "*":
             st.session_state.preview_ready_token = preview_token
+        else:
+            if st.button("Atualizar preview", type="primary", key="btn_preview_refresh"):
+                st.session_state.preview_ready_token = preview_token
 
         if st.session_state.get("preview_ready_token") == preview_token:
             try:
@@ -49,7 +54,9 @@ def render_explore_tab(ctx: WorkContext) -> None:
             except Exception as exc:
                 show_db_error(exc, prefix="Erro SQL")
         else:
-            st.info("Clique em **Atualizar preview** para carregar os dados.")
+            st.info(
+                "Você filtrou colunas — clique em **Atualizar preview** para carregar os dados."
+            )
 
     with subtab_overview:
         overview_mode = st.radio(

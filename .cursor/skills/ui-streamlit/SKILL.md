@@ -26,9 +26,11 @@ Definido em `pq/ui/state.py`. `init_state()` só inicializa defaults — `active
 | `sql_last_submit_id` | Submit do editor |
 | `pg_{key}` | Paginação |
 | `sql_cnt_*` | COUNT cacheado |
-| `preview_ready_token` | Preview sob demanda |
+| `preview_ready_token` | Preview: default `*` auto; seleção de colunas exige botão |
 | `sql_table_schemas` | Schemas do autocomplete |
 | `dax_translate_cache` | Cache de tradução DAX |
+| `local_autoload_done` | Auto-abertura do 1º arquivo em `data/` (modo local) |
+| `cloud_demo_autoload_done` | Auto-load dos demos (modo cloud) |
 
 API derived: `get_derived_sql` / `set_derived_sql` / `has_derived_sql`.
 
@@ -36,7 +38,7 @@ API derived: `get_derived_sql` / `set_derived_sql` / `has_derived_sql`.
 
 | Peça | Arquivo |
 |------|---------|
-| Sidebar / carregar | `pq/ui/sidebar.py` (cloud: auto-load demo) |
+| Sidebar / carregar | `pq/ui/sidebar.py` (local: auto-load 1º original; cloud: auto-load demo; glossário; badge derived) |
 | Receitas demo | `pq/ui/demo_recipes.py` |
 | Estado | `pq/ui/state.py` |
 | Contexto compartilhado | `pq/ui/app_context.py` |
@@ -49,6 +51,8 @@ API derived: `get_derived_sql` / `set_derived_sql` / `has_derived_sql`.
 ## Regras de UI
 
 - Textos da interface em português
-- Preview Explorar: só após **Atualizar preview** (não query a cada rerun)
+- Preview Explorar: todas as colunas (`*`) carregam a 1ª página automaticamente; filtro de colunas exige **Atualizar preview**
+- Badge laranja **Colunas calculadas ativas** na sidebar, Explorar e Colunas quando há derived SQL
+- Glossário (tabela / base / versão / colunas calculadas) no expander da sidebar
 - Dados grandes: nunca carregar resultado completo em DataFrame para paginar — usar `paginate_sql`
 - Após mudar derived SQL: invalidar COUNT (`clear_sql_count_cache`) e caches de schema/describe conforme o fluxo existente
