@@ -46,6 +46,12 @@ def main() -> None:
 
     ctx = build_work_context(con, data_dir, active, loaded, cloud_mode=cloud)
 
+    if cloud:
+        from pq.ui.demo_recipes import render_demo_recipes_panel
+
+        with st.expander("Receitas rápidas da demo (SQL · DAX · M)", expanded=False):
+            render_demo_recipes_panel(show_heading=False, compact=True)
+
     tabs = st.tabs(["Explorar", "SQL", "Colunas", "Exportar"])
     with tabs[0]:
         render_explore_tab(ctx)

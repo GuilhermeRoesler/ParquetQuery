@@ -37,10 +37,13 @@ Manifest corrompido: `load_manifest` retorna fallback + aviso na UI; `save_manif
 ## Modo cloud
 
 - Detecção: `PQ_CLOUD_MODE=1`, vars Streamlit Cloud, ou `/mount/src/` (`pq/config.is_cloud_mode`)
-- Upload sidebar (até 50 MB); demo em `demo/` (`demo/vendas_demo.parquet`)
+- Upload sidebar (até 50 MB); demo em `demo/` (`vendas_demo` ~10k linhas + `clientes_demo` para JOIN)
+- Auto-load dos exemplos na primeira visita da sessão (`cloud_demo_autoload_done` em `pq/ui/sidebar.py`)
+- Rótulos amigáveis via `demo_source_label`; receitas em `pq/ui/demo_recipes.py`
 - Diretório efêmero por sessão (`pq/storage/cloud.py`)
 - Export só por download — sem «Salvar em data/»
 - Instalação local inalterada
+- Regenerar datasets: `python scripts/gen_demo_parquet.py`
 
 ## Checklist ao mudar export/storage
 

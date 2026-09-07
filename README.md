@@ -8,7 +8,7 @@ Aplicação **Streamlit** para explorar arquivos **Parquet** e **CSV** com **Duc
 
 ## Experimente online
 
-**[parquet-query.streamlit.app](https://parquet-query.streamlit.app)** — demo pública no Streamlit Community Cloud. Envie um `.parquet`/`.csv` (até 50 MB) ou use o dataset de exemplo `vendas_demo`. Exportação por download; versionamento persistente fica na [versão local](#download-usuário-windows).
+**[parquet-query.streamlit.app](https://parquet-query.streamlit.app)** — demo pública no Streamlit Community Cloud. Os datasets de exemplo (`vendas_demo` ~10k linhas e `clientes_demo`) carregam automaticamente; também dá para enviar um `.parquet`/`.csv` (até 50 MB). Há receitas SQL/DAX/M na interface. Exportação por download; versionamento persistente fica na [versão local](#download-usuário-windows).
 
 Testar o modo cloud localmente:
 
@@ -112,7 +112,7 @@ Build local (Windows): `powershell -File scripts/build_portable.ps1 -Version 1.6
 
 App publicado em [parquet-query.streamlit.app](https://parquet-query.streamlit.app). Para redeploy ou fork:
 
-1. Push do repositório (inclui `demo/vendas_demo.parquet`).
+1. Push do repositório (inclui `demo/vendas_demo.parquet` e `demo/clientes_demo.parquet`).
 2. Em [share.streamlit.io](https://share.streamlit.io): **New app** → repo → branch `main` → **`app.py`**.
 3. `requirements.txt` na raiz; `.streamlit/config.toml` limita upload a 50 MB.
 

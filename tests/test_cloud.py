@@ -76,3 +76,22 @@ def test_save_uploaded_file_rejects_large(tmp_path: Path) -> None:
 def test_list_demo_files_includes_committed_sample() -> None:
     names = [path.name for path in list_demo_files()]
     assert "vendas_demo.parquet" in names
+    assert "clientes_demo.parquet" in names
+
+
+def test_demo_source_label() -> None:
+    from pq.storage.cloud import demo_source_label
+
+    assert "vendas" in demo_source_label(Path("vendas_demo.parquet")).lower()
+    assert "clientes" in demo_source_label(Path("clientes_demo.parquet")).lower()
+
+
+def test_demo_sql_recipes_mention_join() -> None:
+    from pq.translators import normalize_power_formula, translate_m_to_sql, translate_power_column
+    from pq.ui.demo_recipes import DEMO_DAX_EXAMPLE, DEMO_M_EXAMPLE, demo_sql_recipes
+
+    sql = demo_sql_recipes()
+    assert "JOIN" in sql
+    assert "valor_linha" in sql
+    translate_m_to_sql(DEMO_M_EXAMPLE, table_map={"vendas_demo": "vendas_demo"})
+    translate_power_column(normalize_power_formula(DEMO_DAX_EXAMPLE))

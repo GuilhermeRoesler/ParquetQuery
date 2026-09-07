@@ -62,14 +62,18 @@ def render_empty_state(*, cloud_mode: bool = False) -> None:
     st.title("⚡ Parquet Query")
     if cloud_mode:
         st.info(
-            "Envie um `.parquet` ou `.csv` na barra lateral, ou marque o dataset de exemplo "
-            "e clique **Carregar selecionados**."
+            "Os datasets de exemplo costumam carregar sozinhos. "
+            "Se a sidebar estiver vazia, marque um arquivo e clique **Carregar selecionados**, "
+            "ou envie um `.parquet`/`.csv`."
         )
         st.caption(
             "Versão demo online: exportações são feitas por download. "
             "Para versionamento persistente em `data/`, use a [versão local]"
             "(https://github.com/GuilhermeRoesler/ParquetQuery/releases)."
         )
+        from pq.ui.demo_recipes import render_demo_recipes_panel
+
+        render_demo_recipes_panel()
     else:
         st.info(
             "Selecione e carregue um arquivo `.parquet` ou `.csv` em `data/` "

@@ -36,7 +36,8 @@ API derived: `get_derived_sql` / `set_derived_sql` / `has_derived_sql`.
 
 | Peça | Arquivo |
 |------|---------|
-| Sidebar / carregar | `pq/ui/sidebar.py` |
+| Sidebar / carregar | `pq/ui/sidebar.py` (cloud: auto-load demo) |
+| Receitas demo | `pq/ui/demo_recipes.py` |
 | Estado | `pq/ui/state.py` |
 | Contexto compartilhado | `pq/ui/app_context.py` |
 | Abas | `pq/ui/tabs/` — manter `WorkContext` |

@@ -193,17 +193,31 @@ def render_sql_tab(ctx: WorkContext) -> None:
             if ctx.has_derived
             else ""
         )
-        st.code(
-            f"""-- Preview{derived_note}
+
+        demo_tables = {"vendas_demo", "clientes_demo"}
+        if demo_tables.intersection(ctx.loaded):
+            from pq.ui.demo_recipes import demo_sql_recipes
+
+            st.markdown("**Receitas da demo**")
+            st.code(
+                demo_sql_recipes(
+                    vendas="vendas_demo" if "vendas_demo" in ctx.loaded else ctx.active,
+                    clientes="clientes_demo",
+                ),
+                language="sql",
+            )
+        else:
+            st.code(
+                f"""-- Preview{derived_note}
 SELECT * FROM {frm} LIMIT 100;
 
 -- Filtrar
-SELECT * FROM {frm} WHERE valor > 1000;
+SELECT * FROM {frm} WHERE valor_linha > 1000;
 
 -- Agrupar
-SELECT categoria, SUM(valor) AS total
+SELECT categoria, SUM(valor_linha) AS total
 FROM {frm}
 GROUP BY 1 ORDER BY 2 DESC;
 """,
-            language="sql",
-        )
+                language="sql",
+            )

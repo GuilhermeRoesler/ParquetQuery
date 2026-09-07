@@ -78,7 +78,13 @@ def render_columns_tab(ctx: WorkContext) -> None:
                     )
                     _apply_derived(ctx, new_sql, f"Coluna `{new_col_name}` adicionada.")
         else:
+            from pq.ui.demo_recipes import DEMO_DAX_EXAMPLE
+
             with st.expander("Exemplos de fórmulas Power BI (DAX)"):
+                if "valor_linha" in derived_cols:
+                    st.markdown("**Com o dataset de exemplo**")
+                    st.code(DEMO_DAX_EXAMPLE, language="text")
+                st.markdown("**Outros exemplos**")
                 st.code(
                     """Dias em Atraso = FORMAT(TODAY()- 'fValorNotas'[VENCIMENTO_PARCELA].[Date], 0)
 
@@ -97,7 +103,9 @@ Aging_Atual = IF('fValorNotas'[Dias em Atraso]>360,"9_Acima 361",
                 "Fórmula Power BI (DAX)",
                 height=140,
                 key="pq_col_formula",
-                placeholder='Minha Coluna = IF([valor] > 100, "Alto", "Baixo")',
+                placeholder=DEMO_DAX_EXAMPLE
+                if "valor_linha" in derived_cols
+                else 'Minha Coluna = IF([valor] > 100, "Alto", "Baixo")',
             )
 
             if pq_formula.strip():

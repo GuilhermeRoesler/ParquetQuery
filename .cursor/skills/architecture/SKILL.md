@@ -22,7 +22,7 @@ Streamlit + DuckDB · dados em `data/` · entrada `.parquet`/`.csv` · saída Pa
 
 **Release Windows** (usuário leigo): tag `v*` → `.github/workflows/release.yml` → `scripts/build_portable.ps1` empacota Python embeddable 3.11 + deps + app em `dist/ParquetQuery-{versão}-win64.zip`; launcher `Iniciar Parquet Query.bat` na raiz do zip.
 
-**Modo vitrine (Streamlit Community Cloud):** `pq/config.is_cloud_mode` — `PQ_CLOUD_MODE=1` (teste local), vars `STREAMLIT_SHARING` / `STREAMLIT_CLOUD`, ou repo em `/mount/src/`. Upload sidebar (até 50 MB); demo em `demo/`; dir efêmero por sessão (`pq/storage/cloud.py`); export só por download — sem «Salvar em data/». Local inalterado.
+**Modo vitrine (Streamlit Community Cloud):** `pq/config.is_cloud_mode` — `PQ_CLOUD_MODE=1` (teste local), vars `STREAMLIT_SHARING` / `STREAMLIT_CLOUD`, ou repo em `/mount/src/`. Upload sidebar (até 50 MB); demo em `demo/` (`vendas_demo` + `clientes_demo`); auto-load dos exemplos na 1ª visita (`cloud_demo_autoload_done`); receitas SQL/DAX/M (`pq/ui/demo_recipes.py`); dir efêmero por sessão (`pq/storage/cloud.py`); export só por download — sem «Salvar em data/». Local inalterado.
 
 ## Fluxo de dados
 
@@ -75,7 +75,7 @@ Invalidação: `get_schema.clear()`, `invalidate_data_caches()` (overview, COUNT
 | Paginação | `pq/ui/components/pagination.py` (`paginate_sql`, `cached_sql_count`) |
 | Erros / manifesto UI | `pq/ui/components/errors.py`, `pq/ui/components/manifest.py` |
 | Export / save | `pq/export/query_export.py`, `pq/storage/data_store.py` |
-| Modo cloud / demo | `pq/storage/cloud.py`, `pq/config.is_cloud_mode`, `demo/` |
+| Modo cloud / demo | `pq/storage/cloud.py`, `pq/config.is_cloud_mode`, `demo/`, `pq/ui/demo_recipes.py`, auto-load em `pq/ui/sidebar.py` |
 | Nova função DAX | `pq/translators/dax.py` → `_Parser._translate_call` |
 | Novo passo M | `pq/translators/m.py` → `_translate_step` |
 | Novo formato de arquivo | `pq/config.LOADABLE_EXTENSIONS`, `pq/db/connection.duckdb_read_expr`, `pq/export/io` |
@@ -86,7 +86,7 @@ Invalidação: `get_schema.clear()`, `invalidate_data_caches()` (overview, COUNT
 | Tópico | Status |
 |--------|--------|
 | App local single-user | Sem autenticação; zip portátil via GitHub Releases |
-| Demo online (Streamlit Cloud) | Upload efêmero + `demo/vendas_demo.parquet`; sem persistência em disco |
+| Demo online (Streamlit Cloud) | Auto-load de `demo/vendas_demo.parquet` + `clientes_demo.parquet`; receitas SQL/DAX/M; upload efêmero; sem persistência em disco |
 | DAX / M | Subconjuntos — não paridade com Power BI |
 | Legacy `input/`/`output/` | Migrados para `data/` na 1ª execução |
 | Testes | pytest; CI: ruff (lint+format), pytest (3.9–3.12, cov≥45%), mypy, pip-audit; pre-commit local |

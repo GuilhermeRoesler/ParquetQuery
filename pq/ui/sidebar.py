@@ -21,6 +21,7 @@ from pq.storage import (
 from pq.storage.cloud import (
     cloud_upload_dir,
     list_cloud_sources,
+    list_demo_files,
     process_sidebar_uploads,
 )
 from pq.ui.components.manifest import warn_if_manifest_corrupt
@@ -42,15 +43,20 @@ def _render_file_checklist(
     items: list[tuple[Path, str]],
     *,
     key_prefix: str,
+    label_as_title: bool = False,
 ) -> list[Path]:
     """Checklist compartilhado cloud/local; cada item é (path, rótulo extra)."""
     selected: list[Path] = []
     for df_path, extra_label in items:
         size = format_bytes(df_path.stat().st_size)
         fmt_label = df_path.suffix.lower().lstrip(".")
+        if label_as_title:
+            title = f"{extra_label}  `{size}`  · {fmt_label}"
+        else:
+            title = f"{df_path.stem}  `{size}`  · {extra_label} · {fmt_label}"
         checked = st.checkbox(
-            f"{df_path.stem}  `{size}`  · {extra_label} · {fmt_label}",
-            key=f"{key_prefix}{df_path.name}_{extra_label}",
+            title,
+            key=f"{key_prefix}{df_path.name}",
         )
         if checked:
             selected.append(df_path)
@@ -130,6 +136,20 @@ def _render_cloud_file_picker(
         "com versionamento em disco."
     )
 
+    # Primeira visita: carrega os datasets de exemplo sem clique.
+    if not st.session_state.get("cloud_demo_autoload_done"):
+        st.session_state.cloud_demo_autoload_done = True
+        demo_paths = list_demo_files()
+        # vendas_demo primeiro → vira tabela ativa inicial no selectbox
+        demo_paths = sorted(
+            demo_paths,
+            key=lambda p: (0 if p.stem == "vendas_demo" else 1, p.name),
+        )
+        if demo_paths and not st.session_state.loaded_tables:
+            _load_paths(con, demo_paths)
+            st.toast("Datasets de exemplo carregados.")
+            st.rerun()
+
     upload_dir = cloud_upload_dir()
     saved = process_sidebar_uploads(upload_dir)
     if saved:
@@ -145,10 +165,10 @@ def _render_cloud_file_picker(
 
     sources = list_cloud_sources(upload_dir)
     if not sources:
-        st.info("Envie um arquivo ou carregue o dataset de exemplo abaixo.")
+        st.info("Envie um arquivo ou use o dataset de exemplo abaixo.")
     else:
         st.subheader("Arquivos disponíveis")
-        selected = _render_file_checklist(sources, key_prefix="chk_")
+        selected = _render_file_checklist(sources, key_prefix="chk_", label_as_title=True)
 
         if st.button("Carregar selecionados", type="primary", disabled=not selected):
             _load_paths(con, selected)

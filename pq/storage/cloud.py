@@ -13,6 +13,12 @@ from pq.config import CLOUD_UPLOAD_MAX_BYTES, DEMO_DIR, LOADABLE_EXTENSIONS
 
 _UPLOAD_STEM_RE = re.compile(r"[^A-Za-z0-9._-]+")
 
+# stem → rótulo amigável na sidebar (modo cloud)
+DEMO_FRIENDLY_LABELS: dict[str, str] = {
+    "vendas_demo": "Dataset de exemplo · vendas",
+    "clientes_demo": "Dataset de exemplo · clientes",
+}
+
 
 class UploadedFileLike(Protocol):
     name: str
@@ -59,9 +65,16 @@ def list_upload_files(upload_dir: Path) -> list[Path]:
     )
 
 
+def demo_source_label(path: Path) -> str:
+    """Rótulo amigável para arquivo de demo na sidebar."""
+    return DEMO_FRIENDLY_LABELS.get(path.stem, f"Dataset de exemplo · {path.stem}")
+
+
 def list_cloud_sources(upload_dir: Path) -> list[tuple[Path, str]]:
     """(caminho, rótulo) — demo ou upload."""
-    sources: list[tuple[Path, str]] = [(path, "exemplo") for path in list_demo_files()]
+    sources: list[tuple[Path, str]] = [
+        (path, demo_source_label(path)) for path in list_demo_files()
+    ]
     sources.extend((path, "enviado") for path in list_upload_files(upload_dir))
     return sources
 
