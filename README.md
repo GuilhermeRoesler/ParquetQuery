@@ -2,6 +2,8 @@
 
 Aplicação **Streamlit** para explorar arquivos **Parquet** e **CSV** com **DuckDB** — SQL ad-hoc, colunas calculadas (DuckDB ou DAX do Power BI), tradutor Power Query (M) e exportação versionada em `data/`.
 
+![Parquet Query](docs/screenshots/demo.webp)
+
 **Requisitos:** Python 3.10+ · Windows, Linux ou macOS · Licença [MIT](LICENSE)
 
 ---
@@ -147,6 +149,7 @@ App publicado em [parquet-query.streamlit.app](https://parquet-query.streamlit.a
 ```
 app.py              # Entrada Streamlit
 assets/             # Ícone do app (png/svg/ico)
+docs/screenshots/   # Demo (webp no README; png fonte)
 pq/                 # Pacote principal
   db/               # DuckDB — conexão, schema, derived, paginação
   ui/               # Streamlit — sidebar, abas, componentes
