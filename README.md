@@ -26,13 +26,14 @@ Sem Python instalado: baixe o pacote na [página de Releases](https://github.com
 
 | Plataforma | Arquivo | Como iniciar |
 |------------|---------|--------------|
-| Windows x64 | `ParquetQuery-{versão}-win64.zip` | Duplo clique em **`Iniciar Parquet Query.bat`** |
+| Windows x64 | `ParquetQuery-{versão}-win64-setup.exe` | Execute o instalador; atalho **Parquet Query** no menu Iniciar |
+| Windows x64 (ZIP) | `ParquetQuery-{versão}-win64.zip` | Extraia e dê duplo clique em **`Iniciar Parquet Query.bat`** |
 | Linux x64 / ARM64 | `ParquetQuery-{versão}-linux-*.tar.gz` | `./iniciar-parquet-query.sh` |
 | macOS Intel / Apple Silicon | `ParquetQuery-{versão}-macos-*.tar.gz` | `./iniciar-parquet-query.sh` |
 
-1. Extraia o pacote (ex.: `ParquetQuery-1.6.5-win64` ou `…-linux-x64`)
-2. Coloque `.parquet` ou `.csv` na pasta `data/`
-3. Inicie com o launcher da tabela acima
+1. Instale (`.exe`) ou extraia o pacote (ZIP/tar)
+2. Coloque `.parquet` ou `.csv` na pasta `data/` (no instalador Windows: em `%LOCALAPPDATA%\Programs\Parquet Query\data`)
+3. Inicie com o atalho ou launcher da tabela acima
 
 O navegador abre sozinho quando possível. Detalhes no `LEIA-ME.txt` dentro do pacote.
 
@@ -112,13 +113,16 @@ Dependências: fonte de verdade em `pyproject.toml`; `requirements.txt` / `requi
 
 1. Atualize `version` em `pyproject.toml` se necessário
 2. Crie e envie uma tag semver: `git tag v1.6.5 && git push origin v1.6.5`
-3. O workflow **Release** gera os pacotes Windows / Linux / macOS e anexa ao GitHub Release
+3. O workflow **Release** gera os pacotes Windows (ZIP + setup.exe) / Linux / macOS e anexa ao GitHub Release
 
 Build local:
 
 ```bash
-# Windows
+# Windows (ZIP + instalador; requer Inno Setup 6)
 powershell -File scripts/build_portable.ps1 -Version 1.6.5
+
+# Windows só ZIP
+powershell -File scripts/build_portable.ps1 -Version 1.6.5 -SkipInstaller
 
 # Linux / macOS (detecta o host; ou passe --target)
 chmod +x scripts/build_portable.sh
@@ -142,7 +146,7 @@ App publicado em [parquet-query.streamlit.app](https://parquet-query.streamlit.a
 
 ```
 app.py              # Entrada Streamlit
-assets/             # Ícone do app (page_icon / favicon)
+assets/             # Ícone do app (png/svg/ico)
 pq/                 # Pacote principal
   db/               # DuckDB — conexão, schema, derived, paginação
   ui/               # Streamlit — sidebar, abas, componentes
@@ -151,6 +155,7 @@ pq/                 # Pacote principal
   translators/      # DAX e M → SQL
   overview/         # SQL de overview, formatação pt-BR
 scripts/            # Build portátil, find_free_port, gen_demo
+installer/          # Script Inno Setup (Windows setup.exe)
 demo/               # Dataset de exemplo (modo vitrine / Streamlit Cloud)
 data/               # Arquivos + _manifest.json
 tests/              # pytest

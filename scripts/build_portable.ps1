@@ -14,13 +14,21 @@
 
 .PARAMETER RepoUrl
     URL do repositório GitHub para o LEIA-ME (ex.: https://github.com/user/repo).
+
+.PARAMETER SkipInstaller
+    Não gera o instalador Inno Setup (só o ZIP portátil).
+
+.PARAMETER RequireInstaller
+    Falha se o Inno Setup (ISCC) não estiver instalado. Usado no CI.
 #>
 param(
     [Parameter(Mandatory = $true)]
     [string]$Version,
     [string]$PythonVersion = '3.11.9',
     [string]$OutputDir = 'dist',
-    [string]$RepoUrl = ''
+    [string]$RepoUrl = '',
+    [switch]$SkipInstaller,
+    [switch]$RequireInstaller
 )
 
 $ErrorActionPreference = 'Stop'
@@ -47,6 +55,27 @@ function Invoke-Checked {
     if ($LASTEXITCODE -ne 0) {
         throw "Comando falhou (codigo $LASTEXITCODE): $FilePath $($ArgumentList -join ' ')"
     }
+}
+
+function Find-ISCC {
+    $candidates = @(
+        (Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 6\ISCC.exe'),
+        (Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 7\ISCC.exe'),
+        (Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'),
+        (Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 7\ISCC.exe'),
+        (Join-Path $env:ProgramFiles 'Inno Setup 6\ISCC.exe'),
+        (Join-Path $env:ProgramFiles 'Inno Setup 7\ISCC.exe')
+    )
+    $fromPath = Get-Command iscc -ErrorAction SilentlyContinue
+    if ($fromPath) {
+        $candidates = @($fromPath.Source) + $candidates
+    }
+    foreach ($candidate in $candidates) {
+        if ($candidate -and (Test-Path -LiteralPath $candidate)) {
+            return $candidate
+        }
+    }
+    return $null
 }
 
 Write-Step "Preparando staging em $Staging"
@@ -199,6 +228,45 @@ if (Test-Path $zipPath) {
 }
 Compress-Archive -Path $Staging -DestinationPath $zipPath -CompressionLevel Optimal
 
+$setupPath = $null
+if (-not $SkipInstaller) {
+    Write-Step 'Gerando instalador Inno Setup'
+    $iscc = Find-ISCC
+    if (-not $iscc) {
+        $msg = 'Inno Setup 6 (ISCC.exe) nao encontrado. Instale de https://jrsoftware.org/isinfo.php ou use -SkipInstaller.'
+        if ($RequireInstaller) {
+            throw $msg
+        }
+        Write-Host "[AVISO] $msg" -ForegroundColor Yellow
+    }
+    else {
+        $iss = Join-Path $Root 'installer\parquet-query.iss'
+        if (-not (Test-Path -LiteralPath $iss)) {
+            throw "Script Inno Setup ausente: $iss"
+        }
+        $iconIco = Join-Path $Root 'assets\icon.ico'
+        if (-not (Test-Path -LiteralPath $iconIco)) {
+            throw 'Arquivo obrigatorio ausente: assets\icon.ico'
+        }
+        $setupPath = Join-Path $DistRoot "ParquetQuery-$Version-win64-setup.exe"
+        if (Test-Path -LiteralPath $setupPath) {
+            Remove-Item -LiteralPath $setupPath -Force
+        }
+        Invoke-Checked $iscc `
+            "/DMyAppVersion=$Version" `
+            "/DStagingDir=$Staging" `
+            "/DDistDir=$DistRoot" `
+            "/DRepoRoot=$Root" `
+            $iss
+        if (-not (Test-Path -LiteralPath $setupPath)) {
+            throw "Instalador nao foi gerado em $setupPath"
+        }
+    }
+}
+
 Write-Host ''
 Write-Host "Pacote criado: $zipPath"
+if ($setupPath) {
+    Write-Host "Instalador criado: $setupPath"
+}
 Write-Host "Pasta staging: $Staging"

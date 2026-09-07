@@ -34,18 +34,36 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Montar pacote portátil Windows
+      - name: Instalar Inno Setup
+        shell: pwsh
+        run: |
+          $url = 'https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe'
+          $setup = Join-Path $env:TEMP 'innosetup-6.7.3.exe'
+          Invoke-WebRequest -Uri $url -OutFile $setup -UseBasicParsing
+          Start-Process -FilePath $setup -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait
+          $iscc = @(
+            "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe",
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
+          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { throw 'ISCC.exe nao encontrado apos instalar Inno Setup' }
+          Write-Host "ISCC: $iscc"
+
+      - name: Montar pacote portátil e instalador Windows
         shell: pwsh
         run: |
           ./scripts/build_portable.ps1 `
             -Version '${{ needs.version.outputs.value }}' `
-            -RepoUrl 'https://github.com/${{ github.repository }}'
+            -RepoUrl 'https://github.com/${{ github.repository }}' `
+            -RequireInstaller
 
       - name: Enviar artefato
         uses: actions/upload-artifact@v4
         with:
           name: win64
-          path: dist/*.zip
+          path: |
+            dist/*.zip
+            dist/*-setup.exe
           if-no-files-found: error
 
   build-unix:

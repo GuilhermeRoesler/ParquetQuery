@@ -17,7 +17,7 @@ Streamlit + DuckDB · dados em `data/` · entrada `.parquet`/`.csv` · saída Pa
 - Instalação local alternativa: `pip install -e ".[dev]"`
 - Pacote: `pq/` (`db`, `ui`, `export`, `storage`, `translators`, `overview`)
 - Entrada: `app.py`
-- Ícone: `assets/icon.png` (+ `assets/icon.svg` fonte); `page_icon` em `app.py`
+- Ícone: `assets/icon.png` (+ `assets/icon.svg` fonte, `assets/icon.ico` instalador Windows); `page_icon` em `app.py`
 - Launch: `run.bat` / `run.ps1` / `./run.sh` ou `streamlit run app.py` (detalhes → README)
 - Porta: `scripts/find_free_port.py`
 
@@ -26,10 +26,13 @@ Streamlit + DuckDB · dados em `data/` · entrada `.parquet`/`.csv` · saída Pa
 | Artefato | Script | Runtime embutido |
 |----------|--------|------------------|
 | `ParquetQuery-{versão}-win64.zip` | `scripts/build_portable.ps1` | Python embeddable 3.11 (Windows) |
+| `ParquetQuery-{versão}-win64-setup.exe` | `scripts/build_portable.ps1` + `installer/parquet-query.iss` (Inno Setup 6) | mesmo staging do ZIP |
 | `ParquetQuery-{versão}-linux-{x64\|arm64}.tar.gz` | `scripts/build_portable.sh` | python-build-standalone 3.11 |
 | `ParquetQuery-{versão}-macos-{x64\|arm64}.tar.gz` | `scripts/build_portable.sh` | python-build-standalone 3.11 |
 
 Launchers: `Iniciar Parquet Query.bat` (Windows) / `iniciar-parquet-query.sh` (Unix). Pacote inclui deps + app + `assets/` + pasta `data/`.
+
+**Instalador Windows:** monta sobre o staging do ZIP; instala em `%LOCALAPPDATA%\Programs\Parquet Query` (sem admin; `PrivilegesRequired=lowest`); atalho no menu Iniciar; CI baixa Inno Setup 6.7.3 e exige `-RequireInstaller`. Build local sem Inno: `-SkipInstaller` (só ZIP). Ícone: `assets/icon.ico`.
 
 **Modo vitrine (Streamlit Community Cloud):** `pq/config.is_cloud_mode` — `PQ_CLOUD_MODE=1` (teste local), vars `STREAMLIT_SHARING` / `STREAMLIT_CLOUD`, ou repo em `/mount/src/`. Upload sidebar (até 50 MB); demo em `demo/` (`vendas_demo` + `clientes_demo`); auto-load dos exemplos na 1ª visita (`cloud_demo_autoload_done`); receitas SQL/DAX/M (`pq/ui/demo_recipes.py`); dir efêmero por sessão (`pq/storage/cloud.py`); export só por download — sem «Salvar em data/». Local inalterado.
 
@@ -94,7 +97,7 @@ Invalidação: `get_schema.clear()`, `invalidate_data_caches()` (overview, COUNT
 
 | Tópico | Status |
 |--------|--------|
-| App local single-user | Sem autenticação; pacotes portáteis (win/linux/macos) via GitHub Releases |
+| App local single-user | Sem autenticação; pacotes portáteis (win/linux/macos) + setup.exe Windows via GitHub Releases |
 | Demo online (Streamlit Cloud) | Auto-load de `demo/vendas_demo.parquet` + `clientes_demo.parquet`; receitas SQL/DAX/M; upload efêmero; sem persistência em disco |
 | DAX / M | Subconjuntos — não paridade com Power BI |
 | Legacy `input/`/`output/` | Migrados para `data/` na 1ª execução |
