@@ -13,30 +13,86 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  release-windows:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      value: ${{ steps.version.outputs.value }}
+    steps:
+      - name: Extrair versão da tag
+        id: version
+        run: |
+          tag='${{ github.ref_name }}'
+          if [[ ! "$tag" =~ ^v(.+)$ ]]; then
+            echo "Tag invalida: $tag (esperado formato v1.2.3)" >&2
+            exit 1
+          fi
+          echo "value=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+
+  build-windows:
+    needs: version
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
-
-      - name: Extrair versão da tag
-        id: version
-        shell: pwsh
-        run: |
-          $tag = '${{ github.ref_name }}'
-          if ($tag -notmatch '^v(.+)$') {
-            throw "Tag invalida: $tag (esperado formato v1.2.3)"
-          }
-          "value=$($Matches[1])" >> $env:GITHUB_OUTPUT
 
       - name: Montar pacote portátil Windows
         shell: pwsh
         run: |
           ./scripts/build_portable.ps1 `
-            -Version '${{ steps.version.outputs.value }}' `
+            -Version '${{ needs.version.outputs.value }}' `
             -RepoUrl 'https://github.com/${{ github.repository }}'
+
+      - name: Enviar artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: win64
+          path: dist/*.zip
+          if-no-files-found: error
+
+  build-unix:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux-x64
+          - os: ubuntu-24.04-arm
+            target: linux-arm64
+          - os: macos-13
+            target: macos-x64
+          - os: macos-latest
+            target: macos-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Montar pacote portátil (${{ matrix.target }})
+        run: |
+          chmod +x scripts/build_portable.sh
+          ./scripts/build_portable.sh \
+            --version '${{ needs.version.outputs.value }}' \
+            --target '${{ matrix.target }}' \
+            --repo-url 'https://github.com/${{ github.repository }}'
+
+      - name: Enviar artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    needs: [version, build-windows, build-unix]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar artefatos
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
 
       - name: Publicar no GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.zip
+          files: artifacts/*
           generate_release_notes: true

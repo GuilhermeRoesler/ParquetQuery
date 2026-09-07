@@ -8,7 +8,7 @@ Aplicação **Streamlit** para explorar arquivos **Parquet** e **CSV** com **Duc
 
 ## Experimente online
 
-**[parquet-query.streamlit.app](https://parquet-query.streamlit.app)** — demo pública no Streamlit Community Cloud. Os datasets de exemplo (`vendas_demo` ~10k linhas e `clientes_demo`) carregam automaticamente; também dá para enviar um `.parquet`/`.csv` (até 50 MB). Há receitas SQL/DAX/M na interface. Exportação por download; versionamento persistente fica na [versão local](#download-usuário-windows).
+**[parquet-query.streamlit.app](https://parquet-query.streamlit.app)** — demo pública no Streamlit Community Cloud. Os datasets de exemplo (`vendas_demo` ~10k linhas e `clientes_demo`) carregam automaticamente; também dá para enviar um `.parquet`/`.csv` (até 50 MB). Há receitas SQL/DAX/M na interface. Exportação por download; versionamento persistente fica na [versão local](#download-portátil).
 
 Testar o modo cloud localmente:
 
@@ -20,17 +20,25 @@ streamlit run app.py
 
 ---
 
-## Download (usuário Windows)
+## Download (portátil)
 
-Sem Python instalado: baixe o **`.zip` portátil** na [página de Releases](https://github.com/GuilhermeRoesler/ParquetQuery/releases).
+Sem Python instalado: baixe o pacote na [página de Releases](https://github.com/GuilhermeRoesler/ParquetQuery/releases).
 
-1. Extraia o zip (ex.: `ParquetQuery-1.6.5-win64`)
-2. Coloque `.parquet` ou `.csv` na pasta `data\`
-3. Dê duplo clique em **`Iniciar Parquet Query.bat`**
+| Plataforma | Arquivo | Como iniciar |
+|------------|---------|--------------|
+| Windows x64 | `ParquetQuery-{versão}-win64.zip` | Duplo clique em **`Iniciar Parquet Query.bat`** |
+| Linux x64 / ARM64 | `ParquetQuery-{versão}-linux-*.tar.gz` | `./iniciar-parquet-query.sh` |
+| macOS Intel / Apple Silicon | `ParquetQuery-{versão}-macos-*.tar.gz` | `./iniciar-parquet-query.sh` |
 
-O navegador abre sozinho. Detalhes no `LEIA-ME.txt` dentro do pacote.
+1. Extraia o pacote (ex.: `ParquetQuery-1.6.5-win64` ou `…-linux-x64`)
+2. Coloque `.parquet` ou `.csv` na pasta `data/`
+3. Inicie com o launcher da tabela acima
 
-> O Windows pode avisar que o app não é assinado — normal em releases open source. Use «Mais informações» → «Executar assim mesmo» se confiar na origem.
+O navegador abre sozinho quando possível. Detalhes no `LEIA-ME.txt` dentro do pacote.
+
+> **Windows:** o sistema pode avisar que o app não é assinado — normal em releases open source. Use «Mais informações» → «Executar assim mesmo» se confiar na origem.
+>
+> **Linux/macOS:** se necessário, `chmod +x iniciar-parquet-query.sh`. No Linux, use uma distribuição com glibc recente (Ubuntu 20.04+, Debian 11+, etc.).
 
 ---
 
@@ -100,13 +108,23 @@ CI (GitHub Actions): Ruff (lint + format), pytest em Python 3.10/3.11/3.12 com c
 
 Dependências: fonte de verdade em `pyproject.toml`; `requirements.txt` / `requirements-dev.txt` são espelhos (Streamlit Cloud e build portátil).
 
-### Publicar release (Windows portátil)
+### Publicar release (pacotes portáteis)
 
 1. Atualize `version` em `pyproject.toml` se necessário
 2. Crie e envie uma tag semver: `git tag v1.6.5 && git push origin v1.6.5`
-3. O workflow **Release** gera `ParquetQuery-{versão}-win64.zip` e anexa ao GitHub Release
+3. O workflow **Release** gera os pacotes Windows / Linux / macOS e anexa ao GitHub Release
 
-Build local (Windows): `powershell -File scripts/build_portable.ps1 -Version 1.6.5`
+Build local:
+
+```bash
+# Windows
+powershell -File scripts/build_portable.ps1 -Version 1.6.5
+
+# Linux / macOS (detecta o host; ou passe --target)
+chmod +x scripts/build_portable.sh
+./scripts/build_portable.sh --version 1.6.5
+./scripts/build_portable.sh --version 1.6.5 --target linux-x64
+```
 
 ### Publicar demo online (Streamlit Community Cloud)
 
