@@ -20,6 +20,12 @@
 
 .PARAMETER RequireInstaller
     Falha se o Inno Setup (ISCC) não estiver instalado. Usado no CI.
+
+.PARAMETER LiteOnly
+    Gera só o ZIP lite (código + bootstrap; exige Python do sistema na 1ª execução).
+
+.PARAMETER SkipLite
+    Não gera o ZIP lite junto com o pacote full (ignorado com -LiteOnly).
 #>
 param(
     [Parameter(Mandatory = $true)]
@@ -28,7 +34,9 @@ param(
     [string]$OutputDir = 'dist',
     [string]$RepoUrl = '',
     [switch]$SkipInstaller,
-    [switch]$RequireInstaller
+    [switch]$RequireInstaller,
+    [switch]$LiteOnly,
+    [switch]$SkipLite
 )
 
 $ErrorActionPreference = 'Stop'
@@ -38,10 +46,175 @@ $DistRoot = Join-Path $Root $OutputDir
 $BundleName = "ParquetQuery-$Version-win64"
 $Staging = Join-Path $DistRoot $BundleName
 $PythonDir = Join-Path $Staging 'python'
+$LiteBundleName = "ParquetQuery-$Version-win64-lite"
+$LiteStaging = Join-Path $DistRoot $LiteBundleName
 
 function Write-Step([string]$Message) {
     Write-Host ''
     Write-Host ">> $Message"
+}
+
+function Copy-AppPayload {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Dest,
+        [switch]$IncludeRequirements
+    )
+
+    $copyItems = @(
+        'app.py',
+        'LICENSE',
+        'pq',
+        'assets'
+    )
+    foreach ($item in $copyItems) {
+        $source = Join-Path $Root $item
+        if (-not (Test-Path $source)) {
+            throw "Arquivo obrigatorio ausente: $item"
+        }
+        Copy-Item -Path $source -Destination (Join-Path $Dest $item) -Recurse -Force
+    }
+
+    $scriptsDir = Join-Path $Dest 'scripts'
+    New-Item -ItemType Directory -Path $scriptsDir -Force | Out-Null
+    $scriptFiles = @(
+        'find_free_port.py',
+        'windows_tray_launcher.py',
+        'windows_lite_bootstrap.py'
+    )
+    foreach ($scriptName in $scriptFiles) {
+        $src = Join-Path $Root "scripts\$scriptName"
+        if (-not (Test-Path $src)) {
+            throw "Arquivo obrigatorio ausente: scripts\$scriptName"
+        }
+        Copy-Item -Path $src -Destination (Join-Path $scriptsDir $scriptName) -Force
+    }
+
+    if ($IncludeRequirements) {
+        foreach ($req in @('requirements.txt', 'requirements-portable-win.txt')) {
+            $src = Join-Path $Root $req
+            if (-not (Test-Path $src)) {
+                throw "Arquivo obrigatorio ausente: $req"
+            }
+            Copy-Item -Path $src -Destination (Join-Path $Dest $req) -Force
+        }
+    }
+}
+
+function New-LitePackage {
+    Write-Step "Preparando staging lite em $LiteStaging"
+    if (Test-Path $LiteStaging) {
+        Remove-Item $LiteStaging -Recurse -Force
+    }
+    New-Item -ItemType Directory -Path $LiteStaging -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $LiteStaging 'data') -Force | Out-Null
+    New-Item -ItemType Directory -Path $DistRoot -Force | Out-Null
+
+    Write-Step 'Copiando arquivos do pacote lite'
+    Copy-AppPayload -Dest $LiteStaging -IncludeRequirements
+
+    $liteBat = @'
+@echo off
+cd /d "%~dp0"
+title Parquet Query (lite)
+where py >nul 2>&1
+if %ERRORLEVEL%==0 (
+  py -3 "%~dp0scripts\windows_lite_bootstrap.py"
+  if errorlevel 1 pause
+  exit /b %ERRORLEVEL%
+)
+where python >nul 2>&1
+if %ERRORLEVEL%==0 (
+  python "%~dp0scripts\windows_lite_bootstrap.py"
+  if errorlevel 1 pause
+  exit /b %ERRORLEVEL%
+)
+echo [ERRO] Python 3.10+ nao encontrado no PATH.
+echo Instale em https://www.python.org/downloads/ e marque "Add to PATH".
+echo Ou use o pacote completo win64-setup.exe / win64.zip (sem Python).
+pause
+exit /b 1
+'@
+    Set-Content -Path (Join-Path $LiteStaging 'Iniciar Parquet Query.bat') -Value $liteBat -Encoding Ascii
+
+    $repoLine = if ($RepoUrl) { "Projeto: $RepoUrl" } else { 'Projeto: consulte o repositorio no GitHub.' }
+    $leiaMeLite = @"
+Parquet Query v$Version — Windows 64 bits (lite)
+================================================
+
+Este pacote NAO inclui Python. Na 1a execucao cria .venv e baixa as
+dependencias (internet necessaria). Nas seguintes, sobe direto.
+
+REQUISITOS
+- Windows 10 ou 11 (64 bits)
+- Python 3.10+ no PATH (instalador python.org com "Add to PATH")
+- Internet na primeira execucao
+
+INICIO RAPIDO
+1. Instale com o setup-lite.exe OU extraia o ZIP lite
+2. Use o atalho do menu Iniciar ou "Iniciar Parquet Query.bat"
+3. Aguarde a configuracao (1a vez); o navegador abre e a bandeja fica ativa
+
+PASTA DE INSTALACAO (setup)
+%LOCALAPPDATA%\Programs\Parquet Query Lite
+
+SEM PYTHON / OFFLINE
+Use o pacote completo: ParquetQuery-$Version-win64-setup.exe ou
+ParquetQuery-$Version-win64.zip (Python embutido).
+
+$repoLine
+"@
+    Set-Content -Path (Join-Path $LiteStaging 'LEIA-ME.txt') -Value $leiaMeLite -Encoding UTF8
+
+    Write-Step 'Criando ZIP lite'
+    $liteZipPath = Join-Path $DistRoot "$LiteBundleName.zip"
+    if (Test-Path $liteZipPath) {
+        Remove-Item $liteZipPath -Force
+    }
+    Compress-Archive -Path $LiteStaging -DestinationPath $liteZipPath -CompressionLevel Optimal
+    Write-Host "Pacote lite criado: $liteZipPath"
+
+    $liteSetupPath = $null
+    if (-not $SkipInstaller) {
+        Write-Step 'Gerando instalador lite (Inno Setup)'
+        $iscc = Find-ISCC
+        if (-not $iscc) {
+            $msg = 'Inno Setup 6 (ISCC.exe) nao encontrado. Instale de https://jrsoftware.org/isinfo.php ou use -SkipInstaller.'
+            if ($RequireInstaller) {
+                throw $msg
+            }
+            Write-Host "[AVISO] $msg" -ForegroundColor Yellow
+        }
+        else {
+            $iss = Join-Path $Root 'installer\parquet-query-lite.iss'
+            if (-not (Test-Path -LiteralPath $iss)) {
+                throw "Script Inno Setup lite ausente: $iss"
+            }
+            $iconIco = Join-Path $Root 'assets\icon.ico'
+            if (-not (Test-Path -LiteralPath $iconIco)) {
+                throw 'Arquivo obrigatorio ausente: assets\icon.ico'
+            }
+            $liteSetupPath = Join-Path $DistRoot "ParquetQuery-$Version-win64-lite-setup.exe"
+            if (Test-Path -LiteralPath $liteSetupPath) {
+                Remove-Item -LiteralPath $liteSetupPath -Force
+            }
+            Invoke-Checked $iscc `
+                "/DMyAppVersion=$Version" `
+                "/DStagingDir=$LiteStaging" `
+                "/DDistDir=$DistRoot" `
+                "/DRepoRoot=$Root" `
+                $iss
+            if (-not (Test-Path -LiteralPath $liteSetupPath)) {
+                throw "Instalador lite nao foi gerado em $liteSetupPath"
+            }
+            Write-Host "Instalador lite criado: $liteSetupPath"
+        }
+    }
+
+    return @{
+        Zip   = $liteZipPath
+        Setup = $liteSetupPath
+    }
 }
 
 function Invoke-Checked {
@@ -76,6 +249,17 @@ function Find-ISCC {
         }
     }
     return $null
+}
+
+if ($LiteOnly) {
+    $lite = New-LitePackage
+    Write-Host ''
+    Write-Host "Pacote lite: $($lite.Zip)"
+    if ($lite.Setup) {
+        Write-Host "Instalador lite: $($lite.Setup)"
+    }
+    Write-Host "Pasta staging lite: $LiteStaging"
+    exit 0
 }
 
 Write-Step "Preparando staging em $Staging"
@@ -122,33 +306,7 @@ if (-not (Test-Path $requirements)) {
 Invoke-Checked $pyExe '-m' 'pip' 'install' '-r' $requirements '--no-warn-script-location'
 
 Write-Step 'Copiando arquivos do app'
-$copyItems = @(
-    'app.py',
-    'LICENSE',
-    'pq',
-    'assets'
-)
-foreach ($item in $copyItems) {
-    $source = Join-Path $Root $item
-    if (-not (Test-Path $source)) {
-        throw "Arquivo obrigatorio ausente: $item"
-    }
-    Copy-Item -Path $source -Destination (Join-Path $Staging $item) -Recurse -Force
-}
-
-$scriptsDir = Join-Path $Staging 'scripts'
-New-Item -ItemType Directory -Path $scriptsDir -Force | Out-Null
-$scriptFiles = @(
-    'find_free_port.py',
-    'windows_tray_launcher.py'
-)
-foreach ($scriptName in $scriptFiles) {
-    $src = Join-Path $Root "scripts\$scriptName"
-    if (-not (Test-Path $src)) {
-        throw "Arquivo obrigatorio ausente: scripts\$scriptName"
-    }
-    Copy-Item -Path $src -Destination (Join-Path $scriptsDir $scriptName) -Force
-}
+Copy-AppPayload -Dest $Staging
 
 Write-Step 'Gerando launchers e LEIA-ME'
 # Atalho sem console: pythonw + bandeja. O .bat só dispara e fecha.
@@ -242,3 +400,12 @@ if ($setupPath) {
     Write-Host "Instalador criado: $setupPath"
 }
 Write-Host "Pasta staging: $Staging"
+
+if (-not $SkipLite) {
+    $lite = New-LitePackage
+    Write-Host "Pacote lite: $($lite.Zip)"
+    if ($lite.Setup) {
+        Write-Host "Instalador lite: $($lite.Setup)"
+    }
+    Write-Host "Pasta staging lite: $LiteStaging"
+}

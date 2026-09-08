@@ -24,12 +24,14 @@ streamlit run app.py
 
 ## Download (portátil)
 
-Sem Python instalado: baixe o pacote na [página de Releases](https://github.com/GuilhermeRoesler/ParquetQuery/releases).
+Baixe o pacote na [página de Releases](https://github.com/GuilhermeRoesler/ParquetQuery/releases).
 
 | Plataforma | Arquivo | Como iniciar |
 |------------|---------|--------------|
 | Windows x64 | `ParquetQuery-{versão}-win64-setup.exe` | Execute o instalador; atalho **Parquet Query** no menu Iniciar |
 | Windows x64 (ZIP) | `ParquetQuery-{versão}-win64.zip` | Extraia e dê duplo clique em **`Iniciar Parquet Query.bat`** |
+| Windows x64 (lite) | `ParquetQuery-{versão}-win64-lite-setup.exe` | Instalador leve (exige Python 3.10+); 1ª execução cria `.venv` e baixa deps; atalho **Parquet Query (lite)** |
+| Windows x64 (lite ZIP) | `ParquetQuery-{versão}-win64-lite.zip` | Mesmo conteúdo do lite, sem instalador — extraia e use o `.bat` |
 | Linux x64 / ARM64 | `ParquetQuery-{versão}-linux-*.tar.gz` | `./iniciar-parquet-query.sh` |
 | macOS Apple Silicon (ARM64) | `ParquetQuery-{versão}-macos-arm64.tar.gz` | `./iniciar-parquet-query.sh` |
 
@@ -37,9 +39,11 @@ Sem Python instalado: baixe o pacote na [página de Releases](https://github.com
 2. Coloque `.parquet` ou `.csv` na pasta `data/` **ou** envie pela sidebar do app (no instalador Windows: `%LOCALAPPDATA%\Programs\Parquet Query\data`)
 3. Inicie com o atalho ou launcher da tabela acima
 
-No **Windows**, o app sobe sem janela de terminal: o navegador abre sozinho e um ícone fica na **bandeja do sistema** (clique para reabrir; **Sair** encerra o servidor). Linux/macOS ainda usam o terminal do launcher. Detalhes no `LEIA-ME.txt` dentro do pacote.
+No **Windows**, o app sobe sem janela de terminal: o navegador abre sozinho e um ícone fica na **bandeja do sistema** (clique para reabrir; **Sair** encerra o servidor). O pacote **lite** mostra o terminal só na 1ª configuração (pip). Linux/macOS ainda usam o terminal do launcher. Detalhes no `LEIA-ME.txt` dentro do pacote.
 
 > **Windows:** o sistema pode avisar que o app não é assinado — normal em releases open source. Use «Mais informações» → «Executar assim mesmo» se confiar na origem. Se o ícone da bandeja não aparecer, abra a área de notificação oculta (seta ^).
+>
+> **Windows lite:** precisa de Python 3.10+ no PATH e internet na 1ª execução. Instala em `%LOCALAPPDATA%\Programs\Parquet Query Lite`. Sem Python ou offline, use o `setup.exe` / ZIP completo.
 >
 > **Linux/macOS:** se necessário, `chmod +x iniciar-parquet-query.sh`. No Linux, use uma distribuição com glibc recente (Ubuntu 20.04+, Debian 11+, etc.).
 
@@ -111,22 +115,28 @@ pre-commit install   # opcional: hooks locais espelhando o CI
 
 CI (GitHub Actions): Ruff (lint + format), pytest em Python 3.10/3.11/3.12 com cobertura mínima, mypy e `pip-audit`. Dependabot abre PRs semanais de dependências.
 
-Dependências: fonte de verdade em `pyproject.toml`; `requirements.txt` / `requirements-dev.txt` são espelhos (Streamlit Cloud e launchers). O build Windows usa `requirements-portable-win.txt` (`pystray`/`Pillow` para a bandeja).
+Dependências: fonte de verdade em `pyproject.toml`; `requirements.txt` / `requirements-dev.txt` são espelhos (Streamlit Cloud e launchers). O build Windows full usa `requirements-portable-win.txt` (`pystray`/`Pillow` para a bandeja). O ZIP **lite** inclui os mesmos requirements e as baixa na 1ª execução via `.venv`.
 
 ### Publicar release (pacotes portáteis)
 
 1. Atualize `version` em `pyproject.toml` se necessário
 2. Crie e envie uma tag semver: `git tag v1.6.5 && git push origin v1.6.5`
-3. O workflow **Release** gera os pacotes Windows (ZIP + setup.exe) / Linux / macOS ARM64 e anexa ao GitHub Release
+3. O workflow **Release** gera os pacotes Windows (ZIP/setup full + ZIP/setup lite) / Linux / macOS ARM64 e anexa ao GitHub Release
 
 Build local:
 
 ```bash
-# Windows (ZIP + instalador; requer Inno Setup 6)
+# Windows (ZIP/setup full + ZIP/setup lite; requer Inno Setup 6)
 powershell -File scripts/build_portable.ps1 -Version 1.6.5
 
-# Windows só ZIP
+# Windows só ZIPs (full + lite; sem Inno)
 powershell -File scripts/build_portable.ps1 -Version 1.6.5 -SkipInstaller
+
+# Windows só lite (ZIP + setup-lite se Inno estiver instalado)
+powershell -File scripts/build_portable.ps1 -Version 1.6.5 -LiteOnly
+
+# Full sem gerar lite
+powershell -File scripts/build_portable.ps1 -Version 1.6.5 -SkipInstaller -SkipLite
 
 # Linux / macOS (detecta o host; ou passe --target)
 chmod +x scripts/build_portable.sh
@@ -162,7 +172,7 @@ pq/                 # Pacote principal
   translators/      # DAX e M → SQL
   overview/         # SQL de overview, formatação pt-BR
 scripts/            # Build portátil, find_free_port, gen_demo
-installer/          # Script Inno Setup (Windows setup.exe)
+installer/          # Inno Setup (setup full + lite)
 demo/               # Dataset de exemplo (modo vitrine / Streamlit Cloud)
 data/               # Arquivos + _manifest.json
 tests/              # pytest

@@ -35,6 +35,10 @@ def _message_box(text: str, title: str = "Parquet Query") -> None:
 
 
 def _python_exe() -> Path:
+    """Prioridade: .venv (pacote lite) → Python embutido (full) → interpretador atual."""
+    venv = ROOT / ".venv" / "Scripts" / "python.exe"
+    if venv.is_file():
+        return venv
     embedded = ROOT / "python" / "python.exe"
     if embedded.is_file():
         return embedded

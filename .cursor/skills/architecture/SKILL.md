@@ -27,13 +27,14 @@ Streamlit + DuckDB · dados em `data/` · entrada `.parquet`/`.csv` · saída Pa
 |----------|--------|------------------|
 | `ParquetQuery-{versão}-win64.zip` | `scripts/build_portable.ps1` | Python embeddable 3.11 (Windows) |
 | `ParquetQuery-{versão}-win64-setup.exe` | `scripts/build_portable.ps1` + `installer/parquet-query.iss` (Inno Setup 6) | mesmo staging do ZIP |
+| `ParquetQuery-{versão}-win64-lite.zip` | `scripts/build_portable.ps1` (também com `-LiteOnly`) | nenhum — Python 3.10+ do sistema + `.venv` na 1ª execução |
+| `ParquetQuery-{versão}-win64-lite-setup.exe` | `scripts/build_portable.ps1` + `installer/parquet-query-lite.iss` | mesmo staging lite; pasta `%LOCALAPPDATA%\Programs\Parquet Query Lite`; AppId distinto do full |
 | `ParquetQuery-{versão}-linux-{x64\|arm64}.tar.gz` | `scripts/build_portable.sh` | python-build-standalone 3.11 |
 | `ParquetQuery-{versão}-macos-arm64.tar.gz` | `scripts/build_portable.sh` | python-build-standalone 3.11 |
 
-CI de release não gera `macos-x64` (`macos-13` aposentado / fila eterna). Build local Intel: `./scripts/build_portable.sh --target macos-x64`.
+CI de release não gera `macos-x64` (`macos-13` aposentado / fila eterna). Build local Intel: `./scripts/build_portable.sh --target macos-x64`. Flags Windows: `-SkipInstaller`, `-SkipLite`, `-LiteOnly`, `-RequireInstaller`.
 
-**Launchers Windows (portátil/instalador):** sem janela de terminal. `Iniciar Parquet Query.bat` (ZIP) ou atalho Inno → `pythonw.exe scripts/windows_tray_launcher.py`: sobe Streamlit oculto, espera a porta, abre o browser e deixa ícone na bandeja (Abrir / pasta `data` / Sair). Instância única por pasta de instalação (lock em `.runtime/`); segundo clique só reabre o browser. Deps extras: `requirements-portable-win.txt` (`pystray`, `Pillow`) — só no build Windows, não no Cloud. Linux/macOS: `iniciar-parquet-query.sh` (terminal). Pacote inclui deps + app + `assets/` + pasta `data/`.
-
+**Launchers Windows (portátil/instalador):** sem janela de terminal. `Iniciar Parquet Query.bat` (ZIP full) ou atalho Inno → `pythonw.exe scripts/windows_tray_launcher.py`: sobe Streamlit oculto, espera a porta, abre o browser e deixa ícone na bandeja (Abrir / pasta `data` / Sair). Instância única por pasta de instalação (lock em `.runtime/`); segundo clique só reabre o browser. Deps extras: `requirements-portable-win.txt` (`pystray`, `Pillow`) — só no build Windows, não no Cloud. **ZIP/setup lite:** atalho ou `.bat` chama `scripts/windows_lite_bootstrap.py` (Python do PATH) → cria `.venv`, `pip install -r requirements-portable-win.txt`, depois `pythonw` + tray; prioridade de interpretador no tray: `.venv` → `python/` embutido → `sys.executable`. Full e lite coexistem (AppIds e pastas distintos). Linux/macOS: `iniciar-parquet-query.sh` (terminal). Pacote full inclui deps + app + `assets/` + pasta `data/`; lite inclui só app + requirements + bootstrap.
 **Instalador Windows:** monta sobre o staging do ZIP; instala em `%LOCALAPPDATA%\Programs\Parquet Query` (sem admin; `PrivilegesRequired=lowest`); atalho no menu Iniciar aponta para `pythonw` + launcher da bandeja; CI baixa Inno Setup 6.7.3 e exige `-RequireInstaller`. Build local sem Inno: `-SkipInstaller` (só ZIP). Ícone: `assets/icon.ico`.
 
 **Modo vitrine (Streamlit Community Cloud):** `pq/config.is_cloud_mode` — `PQ_CLOUD_MODE=1` (teste local), vars `STREAMLIT_SHARING` / `STREAMLIT_CLOUD`, ou repo em `/mount/src/`. Upload sidebar (até 50 MB); demo em `demo/` (`vendas_demo` + `clientes_demo`); auto-load dos exemplos na 1ª visita (`cloud_demo_autoload_done`); receitas SQL/DAX/M (`pq/ui/demo_recipes.py`); dir efêmero por sessão (`pq/storage/cloud.py`); export só por download — sem «Salvar em data/». Modo local: upload sidebar para `data/` (até 500 MB, `LOCAL_UPLOAD_MAX_BYTES`); auto-abertura do 1º original em `data/` (`local_autoload_done`).
@@ -95,12 +96,13 @@ Invalidação: `get_schema.clear()`, `invalidate_data_caches()` (overview, COUNT
 | Novo formato de arquivo | `pq/config.LOADABLE_EXTENSIONS`, `pq/db/connection.duckdb_read_expr`, `pq/export/io` |
 | Overview / formatação pt-BR | `pq/overview/` |
 | Launcher bandeja Windows | `scripts/windows_tray_launcher.py`; deps `requirements-portable-win.txt`; wiring em `scripts/build_portable.ps1` + `installer/parquet-query.iss` |
+| Pacote Windows lite | `scripts/windows_lite_bootstrap.py`; `installer/parquet-query-lite.iss`; ZIP + `*-lite-setup.exe` via `build_portable.ps1` |
 
 ## Estado conhecido
 
 | Tópico | Status |
 |--------|--------|
-| App local single-user | Sem autenticação; pacotes portáteis (win/linux/macos-arm64) + setup.exe Windows via GitHub Releases |
+| App local single-user | Sem autenticação; pacotes portáteis (win full/lite, linux, macos-arm64) + setup.exe Windows via GitHub Releases |
 | Demo online (Streamlit Cloud) | Auto-load de `demo/vendas_demo.parquet` + `clientes_demo.parquet`; receitas SQL/DAX/M; upload efêmero; sem persistência em disco |
 | DAX / M | Subconjuntos — não paridade com Power BI |
 | Legacy `input/`/`output/` | Migrados para `data/` na 1ª execução |
