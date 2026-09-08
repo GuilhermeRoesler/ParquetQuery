@@ -34,7 +34,7 @@ Sem Python instalado: baixe o pacote na [página de Releases](https://github.com
 | macOS Apple Silicon (ARM64) | `ParquetQuery-{versão}-macos-arm64.tar.gz` | `./iniciar-parquet-query.sh` |
 
 1. Instale (`.exe`) ou extraia o pacote (ZIP/tar)
-2. Coloque `.parquet` ou `.csv` na pasta `data/` (no instalador Windows: em `%LOCALAPPDATA%\Programs\Parquet Query\data`)
+2. Coloque `.parquet` ou `.csv` na pasta `data/` **ou** envie pela sidebar do app (no instalador Windows: `%LOCALAPPDATA%\Programs\Parquet Query\data`)
 3. Inicie com o atalho ou launcher da tabela acima
 
 O navegador abre sozinho quando possível. Detalhes no `LEIA-ME.txt` dentro do pacote.
@@ -47,7 +47,7 @@ O navegador abre sozinho quando possível. Detalhes no `LEIA-ME.txt` dentro do p
 
 ## Início rápido
 
-1. Coloque arquivos `.parquet` ou `.csv` na pasta `data/`.
+1. Coloque arquivos `.parquet` ou `.csv` na pasta `data/`, **ou** envie-os pela sidebar após abrir o app.
 2. Inicie o app:
 
 ```bash
@@ -66,7 +66,7 @@ Os scripts de launch criam/ativam `.venv`, instalam dependências, garantem `dat
 
 ## Uso do app
 
-1. **Abrir** — sidebar: na 1ª visita o primeiro arquivo em `data/` abre sozinho; depois marque e clique **Abrir arquivo** (ou **Carregar selecionados** se houver vários)
+1. **Abrir** — sidebar: envie `.parquet`/`.csv` (grava em `data/`), use **Abrir pasta data/** no Explorer, ou marque arquivos já presentes; na 1ª visita o primeiro arquivo em `data/` abre sozinho; depois **Abrir arquivo** / **Carregar selecionados**
 2. **Explorar** — schema, preview automático (todas as colunas; seleção customizada exige Atualizar), overview classificatório ou numérico
 3. **SQL** — editor DuckDB; **Ctrl+Enter** ou Executar; tradutor M no expander
 4. **Colunas** — adicionar (SQL ou DAX), renomear, remover, TRY_CAST; badge quando há transformações ativas
@@ -142,7 +142,7 @@ App publicado em [parquet-query.streamlit.app](https://parquet-query.streamlit.a
 
 1. Push do repositório (inclui `demo/vendas_demo.parquet` e `demo/clientes_demo.parquet`).
 2. Em [share.streamlit.io](https://share.streamlit.io): **New app** → repo → branch `main` → **`app.py`**.
-3. `requirements.txt` na raiz; `.streamlit/config.toml` limita upload a 50 MB.
+3. `requirements.txt` na raiz; `.streamlit/config.toml` limita upload a 500 MB (cloud rejeita >50 MB no app).
 
 **Documentação:** decisões técnicas ficam em `.cursor/skills/*/SKILL.md`; ao mudar código, atualize a skill afetada e este `README.md` se a mudança for user-facing — doc e código devem refletir um ao outro.
 

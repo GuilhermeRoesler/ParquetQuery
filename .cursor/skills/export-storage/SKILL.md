@@ -42,7 +42,8 @@ Manifest corrompido: `load_manifest` retorna fallback + aviso na UI; `save_manif
 - Rótulos amigáveis via `demo_source_label`; receitas em `pq/ui/demo_recipes.py`
 - Diretório efêmero por sessão (`pq/storage/cloud.py`)
 - Export só por download — sem «Salvar em data/»
-- Instalação local inalterada
+- Instalação local inalterada — upload na sidebar grava em `data/` (até 500 MB; `LOCAL_UPLOAD_MAX_BYTES` / `maxUploadSize`); botão **Abrir pasta data/** via `open_in_file_manager`
+- Helpers compartilhados: `sanitize_upload_stem`, `save_uploaded_file`, `process_sidebar_uploads` (keys distintos local/cloud)
 - Regenerar datasets: `python scripts/gen_demo_parquet.py`
 
 ## Checklist ao mudar export/storage

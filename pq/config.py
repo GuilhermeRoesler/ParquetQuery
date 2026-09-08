@@ -9,6 +9,8 @@ BASE = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE / "data"
 DEMO_DIR = BASE / "demo"
 CLOUD_UPLOAD_MAX_BYTES = 50 * 1024 * 1024
+# Alinhado a `.streamlit/config.toml` → server.maxUploadSize (MB).
+LOCAL_UPLOAD_MAX_BYTES = 500 * 1024 * 1024
 
 
 def is_cloud_mode() -> bool:

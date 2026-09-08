@@ -38,7 +38,7 @@ API derived: `get_derived_sql` / `set_derived_sql` / `has_derived_sql`.
 
 | Peça | Arquivo |
 |------|---------|
-| Sidebar / carregar | `pq/ui/sidebar.py` (local: auto-load 1º original; cloud: auto-load demo; glossário; badge derived) |
+| Sidebar / carregar | `pq/ui/sidebar.py` (local: upload→`data/` + abrir pasta; cloud: auto-load demo; glossário; badge derived) |
 | Receitas demo | `pq/ui/demo_recipes.py` |
 | Estado | `pq/ui/state.py` |
 | Contexto compartilhado | `pq/ui/app_context.py` |

@@ -1,4 +1,4 @@
-"""Arquivos e uploads no modo vitrine (Streamlit Community Cloud)."""
+"""Arquivos e uploads (modo cloud e gravação em data/ no local)."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from typing import Protocol, cast
 import streamlit as st
 
 from pq.config import CLOUD_UPLOAD_MAX_BYTES, DEMO_DIR, LOADABLE_EXTENSIONS
+from pq.storage.data_store import safe_data_path
 
 _UPLOAD_STEM_RE = re.compile(r"[^A-Za-z0-9._-]+")
 
@@ -79,40 +80,51 @@ def list_cloud_sources(upload_dir: Path) -> list[tuple[Path, str]]:
     return sources
 
 
-def save_uploaded_file(upload_dir: Path, uploaded_file: UploadedFileLike) -> Path:
-    """Grava upload no diretório da sessão; rejeita arquivos grandes ou inválidos."""
+def save_uploaded_file(
+    dest_dir: Path,
+    uploaded_file: UploadedFileLike,
+    *,
+    max_bytes: int | None = CLOUD_UPLOAD_MAX_BYTES,
+) -> Path:
+    """Grava upload em `dest_dir`; rejeita vazios, formatos inválidos e (se definido) tamanho."""
     if uploaded_file.size is None or uploaded_file.size <= 0:
         raise ValueError("Arquivo vazio.")
-    if uploaded_file.size > CLOUD_UPLOAD_MAX_BYTES:
-        limit_mb = CLOUD_UPLOAD_MAX_BYTES // (1024 * 1024)
-        raise ValueError(f"Arquivo excede o limite de {limit_mb} MB na versão online.")
+    if max_bytes is not None and uploaded_file.size > max_bytes:
+        limit_mb = max_bytes // (1024 * 1024)
+        raise ValueError(f"Arquivo excede o limite de {limit_mb} MB.")
 
     ext = Path(uploaded_file.name).suffix.lower()
     if ext not in LOADABLE_EXTENSIONS:
         raise ValueError("Formato não suportado. Use `.parquet` ou `.csv`.")
 
     stem = sanitize_upload_stem(uploaded_file.name)
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    dest = upload_dir / f"{stem}{ext}"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = safe_data_path(dest_dir, stem, ext.lstrip("."))
     dest.write_bytes(uploaded_file.getvalue())
     return dest
 
 
-def process_sidebar_uploads(upload_dir: Path) -> int:
+def process_sidebar_uploads(
+    dest_dir: Path,
+    *,
+    uploader_key: str = "cloud_file_uploader",
+    processed_key: str = "cloud_processed_uploads",
+    max_bytes: int | None = CLOUD_UPLOAD_MAX_BYTES,
+) -> int:
     """Processa novos arquivos do file_uploader; retorna quantos foram salvos."""
-    uploaded = st.session_state.get("cloud_file_uploader")
+    uploaded = st.session_state.get(uploader_key)
     if not uploaded:
         return 0
 
-    if "cloud_processed_uploads" not in st.session_state:
-        st.session_state.cloud_processed_uploads = set()
+    if processed_key not in st.session_state:
+        st.session_state[processed_key] = set()
 
     saved = 0
     for item in uploaded:
         signature = (item.name, item.size)
-        if signature in st.session_state.cloud_processed_uploads:
+        if signature in st.session_state[processed_key]:
             continue
-        save_uploaded_file(upload_dir, item)
-        st.session_state.cloud_processed_uploads.add(signature)
+        save_uploaded_file(dest_dir, item, max_bytes=max_bytes)
+        st.session_state[processed_key].add(signature)
         saved += 1
     return saved

@@ -7,7 +7,7 @@ from pathlib import Path
 import duckdb
 import streamlit as st
 
-from pq.config import LOADABLE_EXTENSIONS, is_cloud_mode
+from pq.config import LOADABLE_EXTENSIONS, LOCAL_UPLOAD_MAX_BYTES, is_cloud_mode
 from pq.db.connection import register_view
 from pq.db.derived import working_sql
 from pq.db.schema import get_schema
@@ -16,6 +16,7 @@ from pq.storage import (
     build_timeline,
     format_bytes,
     list_data_files,
+    open_in_file_manager,
     version_from_stem,
 )
 from pq.storage.cloud import (
@@ -133,6 +134,30 @@ def _render_local_file_picker(
 ) -> tuple[str | None, list[str]]:
     warn_if_manifest_corrupt(data_dir)
 
+    local_limit_mb = LOCAL_UPLOAD_MAX_BYTES // (1024 * 1024)
+    st.file_uploader(
+        f"Enviar `.parquet` ou `.csv` (até {local_limit_mb} MB)",
+        type=["parquet", "csv"],
+        accept_multiple_files=True,
+        key="local_file_uploader",
+        help="Os arquivos são gravados em `data/` e ficam disponíveis abaixo.",
+    )
+    saved = process_sidebar_uploads(
+        data_dir,
+        uploader_key="local_file_uploader",
+        processed_key="local_processed_uploads",
+        max_bytes=LOCAL_UPLOAD_MAX_BYTES,
+    )
+    if saved:
+        st.success(f"{saved} arquivo(s) salvo(s) em `data/`.")
+        st.rerun()
+
+    if st.button("Abrir pasta data/", key="btn_open_data_dir"):
+        try:
+            open_in_file_manager(data_dir)
+        except OSError as exc:
+            st.error(f"Não foi possível abrir a pasta: {exc}")
+
     data_files = [
         path for path in list_data_files(data_dir) if path.suffix.lower() in LOADABLE_EXTENSIONS
     ]
@@ -147,7 +172,7 @@ def _render_local_file_picker(
             st.rerun()
 
     if not data_files:
-        st.warning("Nenhum `.parquet` ou `.csv` encontrado em `data/`.")
+        st.warning("Nenhum `.parquet` ou `.csv` em `data/`. Envie um arquivo acima.")
     else:
         st.subheader("Arquivos em data/")
         items = []

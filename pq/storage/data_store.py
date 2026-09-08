@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
+import platform
 import re
 import shutil
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -78,6 +81,19 @@ def safe_data_path(data_dir: Path, filename_stem: str, ext: str) -> Path:
     if not dest.is_relative_to(data_dir.resolve()):
         raise ValueError("Caminho de destino fora de data/.")
     return dest
+
+
+def open_in_file_manager(path: Path) -> None:
+    """Abre `path` no gerenciador de arquivos do SO (Explorer / Finder / xdg-open)."""
+    target = path.resolve()
+    target.mkdir(parents=True, exist_ok=True)
+    system = platform.system()
+    if system == "Windows":
+        os.startfile(target)
+    elif system == "Darwin":
+        subprocess.run(["open", str(target)], check=False)
+    else:
+        subprocess.run(["xdg-open", str(target)], check=False)
 
 
 def save_manifest(data_dir: Path, manifest: dict[str, Any]) -> None:

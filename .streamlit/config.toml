@@ -1,5 +1,6 @@
 [server]
-maxUploadSize = 50
+# Limite do Streamlit (MB). Cloud ainda rejeita >50 MB em pq/storage/cloud.py.
+maxUploadSize = 500
 
 [browser]
 gatherUsageStats = false

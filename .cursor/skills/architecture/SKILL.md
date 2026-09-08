@@ -36,13 +36,13 @@ Launchers: `Iniciar Parquet Query.bat` (Windows) / `iniciar-parquet-query.sh` (U
 
 **Instalador Windows:** monta sobre o staging do ZIP; instala em `%LOCALAPPDATA%\Programs\Parquet Query` (sem admin; `PrivilegesRequired=lowest`); atalho no menu Iniciar; CI baixa Inno Setup 6.7.3 e exige `-RequireInstaller`. Build local sem Inno: `-SkipInstaller` (só ZIP). Ícone: `assets/icon.ico`.
 
-**Modo vitrine (Streamlit Community Cloud):** `pq/config.is_cloud_mode` — `PQ_CLOUD_MODE=1` (teste local), vars `STREAMLIT_SHARING` / `STREAMLIT_CLOUD`, ou repo em `/mount/src/`. Upload sidebar (até 50 MB); demo em `demo/` (`vendas_demo` + `clientes_demo`); auto-load dos exemplos na 1ª visita (`cloud_demo_autoload_done`); receitas SQL/DAX/M (`pq/ui/demo_recipes.py`); dir efêmero por sessão (`pq/storage/cloud.py`); export só por download — sem «Salvar em data/». Modo local: auto-abertura do 1º original em `data/` (`local_autoload_done`).
+**Modo vitrine (Streamlit Community Cloud):** `pq/config.is_cloud_mode` — `PQ_CLOUD_MODE=1` (teste local), vars `STREAMLIT_SHARING` / `STREAMLIT_CLOUD`, ou repo em `/mount/src/`. Upload sidebar (até 50 MB); demo em `demo/` (`vendas_demo` + `clientes_demo`); auto-load dos exemplos na 1ª visita (`cloud_demo_autoload_done`); receitas SQL/DAX/M (`pq/ui/demo_recipes.py`); dir efêmero por sessão (`pq/storage/cloud.py`); export só por download — sem «Salvar em data/». Modo local: upload sidebar para `data/` (até 500 MB, `LOCAL_UPLOAD_MAX_BYTES`); auto-abertura do 1º original em `data/` (`local_autoload_done`).
 
 ## Fluxo de dados
 
-Sidebar carrega arquivos → `register_view(stem, path)` cria view DuckDB. Aba **Colunas** empilha transformações em `derived_by_table`. Abas consultam via `work_from_clause(table, derived_sql)`. **Exportar** grava `{base}_vN.ext` e atualiza `_manifest.json`.
+Sidebar carrega arquivos (upload ou pasta `data/`) → `register_view(stem, path)` cria view DuckDB. Aba **Colunas** empilha transformações em `derived_by_table`. Abas consultam via `work_from_clause(table, derived_sql)`. **Exportar** grava `{base}_vN.ext` e atualiza `_manifest.json`.
 
-1. Arquivo em `data/` → view `"stem"` via `read_parquet` / `read_csv_auto`
+1. Arquivo em `data/` (manual ou upload na sidebar) → view `"stem"` via `read_parquet` / `read_csv_auto`
 2. Sem transformações: `FROM "stem"`
 3. Com colunas calculadas: `FROM (derived_sql) __work__`
 4. Export → `record_version` + `save_manifest`
@@ -84,7 +84,7 @@ Invalidação: `get_schema.clear()`, `invalidate_data_caches()` (overview, COUNT
 | Tarefa | Onde |
 |--------|------|
 | Nova aba / UI | `pq/ui/tabs/` — manter `WorkContext`; state em `pq/ui/state.py` |
-| Sidebar / carregar | `pq/ui/sidebar.py` |
+| Sidebar / carregar | `pq/ui/sidebar.py` (local: upload→`data/` + abrir pasta; cloud: upload efêmero) |
 | SQL derivado / preview | `pq/db/derived.py`; ler/gravar via `pq/ui/state.py` |
 | Paginação | `pq/ui/components/pagination.py` (`paginate_sql`, `cached_sql_count`) |
 | Erros / manifesto UI | `pq/ui/components/errors.py`, `pq/ui/components/manifest.py` |

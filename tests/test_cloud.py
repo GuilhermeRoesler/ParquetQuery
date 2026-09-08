@@ -10,13 +10,14 @@ from pq.storage.cloud import list_demo_files, sanitize_upload_stem, save_uploade
 
 
 class _FakeUpload:
-    def __init__(self, name: str, data: bytes) -> None:
+    def __init__(self, name: str, data: bytes, size: int | None = None) -> None:
         self.name = name
         self._data = data
+        self._size = size
 
     @property
     def size(self) -> int:
-        return len(self._data)
+        return len(self._data) if self._size is None else self._size
 
     def getvalue(self) -> bytes:
         return self._data
@@ -68,9 +69,21 @@ def test_save_uploaded_file(tmp_path: Path) -> None:
 
 
 def test_save_uploaded_file_rejects_large(tmp_path: Path) -> None:
-    upload = _FakeUpload("big.parquet", b"x" * (50 * 1024 * 1024 + 1))
+    upload = _FakeUpload("big.parquet", b"x", size=50 * 1024 * 1024 + 1)
     with pytest.raises(ValueError, match="limite"):
         save_uploaded_file(tmp_path, upload)
+
+
+def test_save_uploaded_file_local_limit(tmp_path: Path) -> None:
+    from pq.config import LOCAL_UPLOAD_MAX_BYTES
+
+    upload = _FakeUpload("ok.csv", b"a,b\n1,2\n")
+    dest = save_uploaded_file(tmp_path, upload, max_bytes=LOCAL_UPLOAD_MAX_BYTES)
+    assert dest.read_bytes() == b"a,b\n1,2\n"
+
+    too_big = _FakeUpload("huge.parquet", b"x", size=LOCAL_UPLOAD_MAX_BYTES + 1)
+    with pytest.raises(ValueError, match="limite"):
+        save_uploaded_file(tmp_path, too_big, max_bytes=LOCAL_UPLOAD_MAX_BYTES)
 
 
 def test_list_demo_files_includes_committed_sample() -> None:

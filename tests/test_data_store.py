@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 from pq.storage.data_store import (
     base_name_from,
     next_available_version,
+    open_in_file_manager,
     record_version,
     version_from_stem,
     versioned_stem,
@@ -35,3 +37,24 @@ def test_next_available_version(tmp_path: Path) -> None:
         overwrite=False,
     )
     assert next_available_version(tmp_path, "base") == 2
+
+
+def test_open_in_file_manager_windows(tmp_path: Path) -> None:
+    with (
+        patch("platform.system", return_value="Windows"),
+        patch("os.startfile") as startfile,
+    ):
+        open_in_file_manager(tmp_path)
+    startfile.assert_called_once_with(tmp_path.resolve())
+
+
+def test_open_in_file_manager_creates_dir(tmp_path: Path) -> None:
+    missing = tmp_path / "ainda_nao_existe"
+    with (
+        patch("platform.system", return_value="Linux"),
+        patch("subprocess.run") as run,
+    ):
+        open_in_file_manager(missing)
+    assert missing.is_dir()
+    run.assert_called_once()
+    assert run.call_args.args[0] == ["xdg-open", str(missing.resolve())]
