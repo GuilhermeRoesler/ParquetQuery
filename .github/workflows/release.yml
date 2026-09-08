@@ -76,8 +76,6 @@ jobs:
             target: linux-x64
           - os: ubuntu-24.04-arm
             target: linux-arm64
-          - os: macos-13
-            target: macos-x64
           - os: macos-latest
             target: macos-arm64
     runs-on: ${{ matrix.os }}

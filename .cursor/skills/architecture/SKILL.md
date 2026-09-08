@@ -28,7 +28,9 @@ Streamlit + DuckDB · dados em `data/` · entrada `.parquet`/`.csv` · saída Pa
 | `ParquetQuery-{versão}-win64.zip` | `scripts/build_portable.ps1` | Python embeddable 3.11 (Windows) |
 | `ParquetQuery-{versão}-win64-setup.exe` | `scripts/build_portable.ps1` + `installer/parquet-query.iss` (Inno Setup 6) | mesmo staging do ZIP |
 | `ParquetQuery-{versão}-linux-{x64\|arm64}.tar.gz` | `scripts/build_portable.sh` | python-build-standalone 3.11 |
-| `ParquetQuery-{versão}-macos-{x64\|arm64}.tar.gz` | `scripts/build_portable.sh` | python-build-standalone 3.11 |
+| `ParquetQuery-{versão}-macos-arm64.tar.gz` | `scripts/build_portable.sh` | python-build-standalone 3.11 |
+
+CI de release não gera `macos-x64` (`macos-13` aposentado / fila eterna). Build local Intel: `./scripts/build_portable.sh --target macos-x64`.
 
 Launchers: `Iniciar Parquet Query.bat` (Windows) / `iniciar-parquet-query.sh` (Unix). Pacote inclui deps + app + `assets/` + pasta `data/`.
 
@@ -97,7 +99,7 @@ Invalidação: `get_schema.clear()`, `invalidate_data_caches()` (overview, COUNT
 
 | Tópico | Status |
 |--------|--------|
-| App local single-user | Sem autenticação; pacotes portáteis (win/linux/macos) + setup.exe Windows via GitHub Releases |
+| App local single-user | Sem autenticação; pacotes portáteis (win/linux/macos-arm64) + setup.exe Windows via GitHub Releases |
 | Demo online (Streamlit Cloud) | Auto-load de `demo/vendas_demo.parquet` + `clientes_demo.parquet`; receitas SQL/DAX/M; upload efêmero; sem persistência em disco |
 | DAX / M | Subconjuntos — não paridade com Power BI |
 | Legacy `input/`/`output/` | Migrados para `data/` na 1ª execução |

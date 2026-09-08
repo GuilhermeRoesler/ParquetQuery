@@ -31,7 +31,7 @@ Sem Python instalado: baixe o pacote na [página de Releases](https://github.com
 | Windows x64 | `ParquetQuery-{versão}-win64-setup.exe` | Execute o instalador; atalho **Parquet Query** no menu Iniciar |
 | Windows x64 (ZIP) | `ParquetQuery-{versão}-win64.zip` | Extraia e dê duplo clique em **`Iniciar Parquet Query.bat`** |
 | Linux x64 / ARM64 | `ParquetQuery-{versão}-linux-*.tar.gz` | `./iniciar-parquet-query.sh` |
-| macOS Intel / Apple Silicon | `ParquetQuery-{versão}-macos-*.tar.gz` | `./iniciar-parquet-query.sh` |
+| macOS Apple Silicon (ARM64) | `ParquetQuery-{versão}-macos-arm64.tar.gz` | `./iniciar-parquet-query.sh` |
 
 1. Instale (`.exe`) ou extraia o pacote (ZIP/tar)
 2. Coloque `.parquet` ou `.csv` na pasta `data/` (no instalador Windows: em `%LOCALAPPDATA%\Programs\Parquet Query\data`)
@@ -117,7 +117,7 @@ Dependências: fonte de verdade em `pyproject.toml`; `requirements.txt` / `requi
 
 1. Atualize `version` em `pyproject.toml` se necessário
 2. Crie e envie uma tag semver: `git tag v1.6.5 && git push origin v1.6.5`
-3. O workflow **Release** gera os pacotes Windows (ZIP + setup.exe) / Linux / macOS e anexa ao GitHub Release
+3. O workflow **Release** gera os pacotes Windows (ZIP + setup.exe) / Linux / macOS ARM64 e anexa ao GitHub Release
 
 Build local:
 
@@ -132,6 +132,8 @@ powershell -File scripts/build_portable.ps1 -Version 1.6.5 -SkipInstaller
 chmod +x scripts/build_portable.sh
 ./scripts/build_portable.sh --version 1.6.5
 ./scripts/build_portable.sh --version 1.6.5 --target linux-x64
+# macOS Intel (não sai no CI; só build local):
+./scripts/build_portable.sh --version 1.6.5 --target macos-x64
 ```
 
 ### Publicar demo online (Streamlit Community Cloud)
