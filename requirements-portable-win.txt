@@ -2,4 +2,4 @@
 # Usado por scripts/build_portable.ps1 — não entra no Streamlit Cloud.
 -r requirements.txt
 pystray>=0.19.5
-Pillow>=10.0.0
+Pillow>=12.3.0
