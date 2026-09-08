@@ -13,7 +13,7 @@ description: >-
 Streamlit + DuckDB · dados em `data/` · entrada `.parquet`/`.csv` · saída Parquet/CSV/XLSX.
 
 - Licença: MIT (`LICENSE`)
-- Dependências: `pyproject.toml` (fonte); `requirements.txt` / `requirements-dev.txt` espelham Cloud, launchers e build portátil
+- Dependências: `pyproject.toml` (fonte); `requirements.txt` / `requirements-dev.txt` espelham Cloud e launchers; `requirements-portable-win.txt` = app + pystray/Pillow (só build Windows)
 - Instalação local alternativa: `pip install -e ".[dev]"`
 - Pacote: `pq/` (`db`, `ui`, `export`, `storage`, `translators`, `overview`)
 - Entrada: `app.py`
@@ -32,9 +32,9 @@ Streamlit + DuckDB · dados em `data/` · entrada `.parquet`/`.csv` · saída Pa
 
 CI de release não gera `macos-x64` (`macos-13` aposentado / fila eterna). Build local Intel: `./scripts/build_portable.sh --target macos-x64`.
 
-Launchers: `Iniciar Parquet Query.bat` (Windows) / `iniciar-parquet-query.sh` (Unix). Pacote inclui deps + app + `assets/` + pasta `data/`.
+**Launchers Windows (portátil/instalador):** sem janela de terminal. `Iniciar Parquet Query.bat` (ZIP) ou atalho Inno → `pythonw.exe scripts/windows_tray_launcher.py`: sobe Streamlit oculto, espera a porta, abre o browser e deixa ícone na bandeja (Abrir / pasta `data` / Sair). Instância única por pasta de instalação (lock em `.runtime/`); segundo clique só reabre o browser. Deps extras: `requirements-portable-win.txt` (`pystray`, `Pillow`) — só no build Windows, não no Cloud. Linux/macOS: `iniciar-parquet-query.sh` (terminal). Pacote inclui deps + app + `assets/` + pasta `data/`.
 
-**Instalador Windows:** monta sobre o staging do ZIP; instala em `%LOCALAPPDATA%\Programs\Parquet Query` (sem admin; `PrivilegesRequired=lowest`); atalho no menu Iniciar; CI baixa Inno Setup 6.7.3 e exige `-RequireInstaller`. Build local sem Inno: `-SkipInstaller` (só ZIP). Ícone: `assets/icon.ico`.
+**Instalador Windows:** monta sobre o staging do ZIP; instala em `%LOCALAPPDATA%\Programs\Parquet Query` (sem admin; `PrivilegesRequired=lowest`); atalho no menu Iniciar aponta para `pythonw` + launcher da bandeja; CI baixa Inno Setup 6.7.3 e exige `-RequireInstaller`. Build local sem Inno: `-SkipInstaller` (só ZIP). Ícone: `assets/icon.ico`.
 
 **Modo vitrine (Streamlit Community Cloud):** `pq/config.is_cloud_mode` — `PQ_CLOUD_MODE=1` (teste local), vars `STREAMLIT_SHARING` / `STREAMLIT_CLOUD`, ou repo em `/mount/src/`. Upload sidebar (até 50 MB); demo em `demo/` (`vendas_demo` + `clientes_demo`); auto-load dos exemplos na 1ª visita (`cloud_demo_autoload_done`); receitas SQL/DAX/M (`pq/ui/demo_recipes.py`); dir efêmero por sessão (`pq/storage/cloud.py`); export só por download — sem «Salvar em data/». Modo local: upload sidebar para `data/` (até 500 MB, `LOCAL_UPLOAD_MAX_BYTES`); auto-abertura do 1º original em `data/` (`local_autoload_done`).
 
@@ -94,6 +94,7 @@ Invalidação: `get_schema.clear()`, `invalidate_data_caches()` (overview, COUNT
 | Novo passo M | `pq/translators/m.py` → `_translate_step` |
 | Novo formato de arquivo | `pq/config.LOADABLE_EXTENSIONS`, `pq/db/connection.duckdb_read_expr`, `pq/export/io` |
 | Overview / formatação pt-BR | `pq/overview/` |
+| Launcher bandeja Windows | `scripts/windows_tray_launcher.py`; deps `requirements-portable-win.txt`; wiring em `scripts/build_portable.ps1` + `installer/parquet-query.iss` |
 
 ## Estado conhecido
 

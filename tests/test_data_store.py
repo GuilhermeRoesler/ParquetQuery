@@ -42,7 +42,8 @@ def test_next_available_version(tmp_path: Path) -> None:
 def test_open_in_file_manager_windows(tmp_path: Path) -> None:
     with (
         patch("platform.system", return_value="Windows"),
-        patch("os.startfile") as startfile,
+        # startfile só existe no Windows; create=True para CI Linux
+        patch("os.startfile", create=True) as startfile,
     ):
         open_in_file_manager(tmp_path)
     startfile.assert_called_once_with(tmp_path.resolve())

@@ -22,7 +22,8 @@
 
 #define MyAppName "Parquet Query"
 #define MyAppPublisher "Guilherme Roesler"
-#define MyAppExeName "Iniciar Parquet Query.bat"
+#define MyAppExeName "python\pythonw.exe"
+#define MyAppParams "scripts\windows_tray_launcher.py"
 #define MyAppId "{{A7C3E91F-4B2D-4E8A-9F15-6D2C8B1A0E47}"
 
 [Setup]
@@ -61,9 +62,9 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "{#StagingDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\assets\icon.ico"; WorkingDir: "{app}"
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Parameters: "{#MyAppParams}"; IconFilename: "{app}\assets\icon.ico"; WorkingDir: "{app}"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\assets\icon.ico"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Parameters: "{#MyAppParams}"; IconFilename: "{app}\assets\icon.ico"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "Abrir {#MyAppName}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Parameters: "{#MyAppParams}"; Description: "Abrir {#MyAppName}"; Flags: nowait postinstall skipifsilent; WorkingDir: "{app}"

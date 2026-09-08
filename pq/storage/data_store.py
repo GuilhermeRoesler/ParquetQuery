@@ -89,7 +89,7 @@ def open_in_file_manager(path: Path) -> None:
     target.mkdir(parents=True, exist_ok=True)
     system = platform.system()
     if system == "Windows":
-        os.startfile(target)
+        os.startfile(target)  # type: ignore[attr-defined, unused-ignore]
     elif system == "Darwin":
         subprocess.run(["open", str(target)], check=False)
     else:

@@ -37,9 +37,9 @@ Sem Python instalado: baixe o pacote na [página de Releases](https://github.com
 2. Coloque `.parquet` ou `.csv` na pasta `data/` **ou** envie pela sidebar do app (no instalador Windows: `%LOCALAPPDATA%\Programs\Parquet Query\data`)
 3. Inicie com o atalho ou launcher da tabela acima
 
-O navegador abre sozinho quando possível. Detalhes no `LEIA-ME.txt` dentro do pacote.
+No **Windows**, o app sobe sem janela de terminal: o navegador abre sozinho e um ícone fica na **bandeja do sistema** (clique para reabrir; **Sair** encerra o servidor). Linux/macOS ainda usam o terminal do launcher. Detalhes no `LEIA-ME.txt` dentro do pacote.
 
-> **Windows:** o sistema pode avisar que o app não é assinado — normal em releases open source. Use «Mais informações» → «Executar assim mesmo» se confiar na origem.
+> **Windows:** o sistema pode avisar que o app não é assinado — normal em releases open source. Use «Mais informações» → «Executar assim mesmo» se confiar na origem. Se o ícone da bandeja não aparecer, abra a área de notificação oculta (seta ^).
 >
 > **Linux/macOS:** se necessário, `chmod +x iniciar-parquet-query.sh`. No Linux, use uma distribuição com glibc recente (Ubuntu 20.04+, Debian 11+, etc.).
 
@@ -111,7 +111,7 @@ pre-commit install   # opcional: hooks locais espelhando o CI
 
 CI (GitHub Actions): Ruff (lint + format), pytest em Python 3.10/3.11/3.12 com cobertura mínima, mypy e `pip-audit`. Dependabot abre PRs semanais de dependências.
 
-Dependências: fonte de verdade em `pyproject.toml`; `requirements.txt` / `requirements-dev.txt` são espelhos (Streamlit Cloud e build portátil).
+Dependências: fonte de verdade em `pyproject.toml`; `requirements.txt` / `requirements-dev.txt` são espelhos (Streamlit Cloud e launchers). O build Windows usa `requirements-portable-win.txt` (`pystray`/`Pillow` para a bandeja).
 
 ### Publicar release (pacotes portáteis)
 
@@ -177,6 +177,7 @@ LICENSE             # MIT
 | Sintoma | Ação |
 |---------|------|
 | Porta 8501 ocupada | Scripts tentam 8502+; ou `STREAMLIT_SERVER_PORT` |
+| Windows: ícone some / app “travado” | Na bandeja: **Sair** e abra de novo; se precisar, encerre `pythonw`/`streamlit` no Gerenciador de Tarefas |
 | Exportar «Último resultado» vazio | Execute um SELECT na aba SQL primeiro |
 | XLSX truncado (>1M linhas) | Use Parquet ou CSV |
 | DAX «função não suportada» | Reescreva em SQL DuckDB na aba Colunas |

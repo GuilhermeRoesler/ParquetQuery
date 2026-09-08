@@ -114,8 +114,11 @@ Invoke-WebRequest -Uri 'https://bootstrap.pypa.io/get-pip.py' -OutFile $getPip -
 $pyExe = Join-Path $PythonDir 'python.exe'
 Invoke-Checked $pyExe $getPip '--no-warn-script-location'
 
-Write-Step 'Instalando dependencias do app'
-$requirements = Join-Path $Root 'requirements.txt'
+Write-Step 'Instalando dependencias do app (incl. bandeja Windows)'
+$requirements = Join-Path $Root 'requirements-portable-win.txt'
+if (-not (Test-Path $requirements)) {
+    throw 'Arquivo obrigatorio ausente: requirements-portable-win.txt'
+}
 Invoke-Checked $pyExe '-m' 'pip' 'install' '-r' $requirements '--no-warn-script-location'
 
 Write-Step 'Copiando arquivos do app'
@@ -135,64 +138,30 @@ foreach ($item in $copyItems) {
 
 $scriptsDir = Join-Path $Staging 'scripts'
 New-Item -ItemType Directory -Path $scriptsDir -Force | Out-Null
-$findPortSrc = Join-Path $Root 'scripts\find_free_port.py'
-if (-not (Test-Path $findPortSrc)) {
-    throw 'Arquivo obrigatorio ausente: scripts\find_free_port.py'
+$scriptFiles = @(
+    'find_free_port.py',
+    'windows_tray_launcher.py'
+)
+foreach ($scriptName in $scriptFiles) {
+    $src = Join-Path $Root "scripts\$scriptName"
+    if (-not (Test-Path $src)) {
+        throw "Arquivo obrigatorio ausente: scripts\$scriptName"
+    }
+    Copy-Item -Path $src -Destination (Join-Path $scriptsDir $scriptName) -Force
 }
-Copy-Item -Path $findPortSrc -Destination (Join-Path $scriptsDir 'find_free_port.py') -Force
 
 Write-Step 'Gerando launchers e LEIA-ME'
-$launcherPs1 = @'
-#Requires -Version 5.1
-$ErrorActionPreference = 'Stop'
-
-$Root = $PSScriptRoot
-$Host.UI.RawUI.WindowTitle = 'Parquet Query'
-$Python = Join-Path $Root 'python\python.exe'
-
-if (-not (Test-Path $Python)) {
-    Write-Host '[ERRO] Python embutido nao encontrado. Reinstale o pacote.' -ForegroundColor Red
-    pause
-    exit 1
-}
-
-$dataDir = Join-Path $Root 'data'
-if (-not (Test-Path $dataDir)) {
-    New-Item -ItemType Directory -Path $dataDir | Out-Null
-}
-
-Write-Host ''
-Write-Host ' Parquet Query'
-Write-Host ' ============='
-Write-Host ''
-
-$port = (& $Python (Join-Path $Root 'scripts\find_free_port.py') 8501 2>$null | Out-String).Trim()
-if (-not $port) {
-    Write-Host '[ERRO] Nenhuma porta livre a partir de 8501.' -ForegroundColor Red
-    pause
-    exit 1
-}
-
-Write-Host "Abrindo http://localhost:$port ..."
-Start-Process "http://localhost:$port"
-Write-Host 'Pressione Ctrl+C para encerrar.'
-Write-Host ''
-
-& $Python -m streamlit run (Join-Path $Root 'app.py') `
-    --server.headless true `
-    --server.port $port `
-    --browser.gatherUsageStats false
-exit $LASTEXITCODE
-'@
-Set-Content -Path (Join-Path $Staging 'Iniciar Parquet Query.ps1') -Value $launcherPs1 -Encoding UTF8
-
+# Atalho sem console: pythonw + bandeja. O .bat só dispara e fecha.
 $launcherBat = @'
 @echo off
 cd /d "%~dp0"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Iniciar Parquet Query.ps1"
-set "EXIT_CODE=%ERRORLEVEL%"
-if %EXIT_CODE% neq 0 pause
-exit /b %EXIT_CODE%
+if not exist "%~dp0python\pythonw.exe" (
+  echo [ERRO] Python embutido nao encontrado. Reinstale o pacote.
+  pause
+  exit /b 1
+)
+start "" "%~dp0python\pythonw.exe" "%~dp0scripts\windows_tray_launcher.py"
+exit /b 0
 '@
 Set-Content -Path (Join-Path $Staging 'Iniciar Parquet Query.bat') -Value $launcherBat -Encoding Ascii
 
@@ -203,15 +172,18 @@ Parquet Query v$Version — Windows 64 bits
 
 INICIO RAPIDO
 1. Coloque seus arquivos .parquet ou .csv na pasta data\
-2. De um duplo clique em "Iniciar Parquet Query.bat"
-3. O navegador abrira automaticamente
+2. De um duplo clique em "Iniciar Parquet Query.bat" (ou use o atalho do instalador)
+3. O navegador abre sozinho; um icone fica na bandeja do sistema
 
 REQUISITOS
 - Windows 10 ou 11 (64 bits)
 - Nao e necessario instalar Python
 
-ENCERRAR
-- Feche a janela preta do terminal ou pressione Ctrl+C
+USO DA BANDEJA
+- Clique no icone (ou "Abrir no navegador") para reabrir o app
+- "Abrir pasta data" — pasta dos arquivos
+- "Sair" — encerra o servidor e remove o icone
+- Se o app ja estiver rodando, um novo clique so reabre o navegador
 
 AVISO
 - O Windows pode exibir alerta de seguranca (app nao assinado). Escolha
